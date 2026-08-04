@@ -1,0 +1,1426 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="cs" lang="cs">
+<head>
+  <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />
+  <title>K3s Platforma pro nasazení na fyzických serverech s vysokou dostupností — Technická příručka</title>
+  <style type="text/css">
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2em; color: #24292e; }
+    h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; margin-bottom: 0.5em; }
+    h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 0.3em; }
+    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3em; }
+    pre { background-color: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px; padding: 1em; overflow-x: auto; font-size: 0.9em; }
+    code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9em; }
+    p > code, li > code, td > code { background-color: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #e1e4e8; padding: 0.5em 1em; text-align: left; }
+    th { background-color: #f6f8fa; font-weight: 600; }
+    hr { border: none; border-top: 1px solid #e1e4e8; margin: 2em 0; }
+    a { color: #0366d6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { font-weight: 600; }
+    ul, ol { padding-left: 2em; }
+    blockquote { border-left: 4px solid #dfe2e5; padding: 0 1em; color: #6a737d; margin: 1em 0; }
+  </style>
+</head>
+<body>
+<h1 id="k3s-vysoce-dostupna-platforma-pro-nasazeni-na-baremetal-serverech">K3s Vysoce dostupná platforma pro nasazení na baremetal serverech</h1>
+<h2 id="technicky-referencni-dokument">Technický referenční dokument</h2>
+<p><strong>Verze:</strong> 1.0.0<br />
+<strong>Poslední aktualizace:</strong> Srpen 2026<br />
+<strong>Repozitář:</strong> <a href="https://github.com/opentreecz/k3s">github.com/opentreecz/k3s</a><br />
+<strong>Webový generátor:</strong> <a href="https://opentreecz.github.io/k3s/">opentreecz.github.io/k3s</a></p>
+<hr />
+<h2 id="obsah">Obsah</h2>
+<ol>
+<li><a href="#1-shrnutí">Shrnutí</a></li>
+<li><a href="#2-přehled-projektu">Přehled projektu</a></li>
+<li><a href="#3-architektura">Architektura</a></li>
+<li><a href="#4-podrobný-popis-komponent">Podrobný popis komponent</a></li>
+<li><a href="#41-vrstva-operačního-systému">4.1 Vrstva operačního systému</a></li>
+<li><a href="#42-distribuce-k3s-kubernetes">4.2 Distribuce K3s Kubernetes</a></li>
+<li><a href="#43-load-balancer-haproxy">4.3 Load balancer HAProxy</a></li>
+<li><a href="#44-keepalived-a-virtuální-ip">4.4 Keepalived a virtuální IP</a></li>
+<li><a href="#45-distribuované-úložiště-longhorn">4.5 Distribuované úložiště Longhorn</a></li>
+<li><a href="#46-síťová-architektura-dhcpv4dhcpv6">4.6 Síťová architektura (DHCPv4/DHCPv6)</a></li>
+<li><a href="#5-postup-nasazení">Postup nasazení</a></li>
+<li><a href="#6-systém-generování-konfigurace">Systém generování konfigurace</a></li>
+<li><a href="#7-strategie-dělení-disků">Strategie dělení disků</a></li>
+<li><a href="#8-model-zabezpečení">Model zabezpečení</a></li>
+<li><a href="#9-architektura-perzistentního-úložiště">Architektura perzistentního úložiště</a></li>
+<li><a href="#10-kontinuální-integrace-a-zajištění-kvality">Kontinuální integrace a zajištění kvality</a></li>
+<li><a href="#11-webový-generátor-konfigurace">Webový generátor konfigurace</a></li>
+<li><a href="#12-souhrn">Souhrn</a></li>
+</ol>
+<hr />
+<h2 id="1-shrnuti">1. Shrnutí</h2>
+<p>Tento projekt poskytuje kompletní automatizovanou platformu pro nasazení <strong>vysoce dostupného clusteru K3s Kubernetes</strong> na baremetal serverech. Platforma cílí na prostředí běžící na <strong>SUSE Linux Enterprise Micro (SLE Micro)</strong> nebo <strong>openSUSE MicroOS</strong> — neměnných, pro kontejnery optimalizovaných operačních systémech navržených speciálně pro edge a Kubernetes workloady.</p>
+<p>Platforma pro nasazení pokrývá celý životní cyklus provisioningu clusteru:</p>
+<ul>
+<li>Instalace a konfigurace operačního systému</li>
+<li>Plánování sítě se správou statických pronájmů DHCPv4/DHCPv6</li>
+<li>Vysoká dostupnost API serveru prostřednictvím HAProxy a Keepalived</li>
+<li>Automatizovaný bootstrap clusteru K3s s vestavěným etcd</li>
+<li>Registrace worker uzlů</li>
+<li>Provisioning perzistentního úložiště (Longhorn nebo local-path)</li>
+<li>Správa SSH klíčů s importem klíčů z GitHubu</li>
+</ul>
+<p>Veškerá konfigurace je řízena <strong>jediným souborem proměnných</strong> a vykreslována přes <strong>šablony Jinja2</strong>, což zajišťuje konzistenci, opakovatelnost a auditovatelnost napříč prostředími.</p>
+<hr />
+<h2 id="2-prehled-projektu">2. Přehled projektu</h2>
+<h3 id="21-definice-problemu">2.1 Definice problému</h3>
+<p>Nasazení produkčního clusteru Kubernetes na baremetal serverech přináší řadu výzev, které spravovaná cloudová prostředí abstrahují:</p>
+<ul>
+<li>Žádný automatizovaný provisioning infrastruktury (žádné Terraform/cloudové API)</li>
+<li>Žádný vestavěný load balancer pro API server</li>
+<li>Žádný spravovaný úložný backend</li>
+<li>Síťové adresování je třeba plánovat a koordinovat se stávající DHCP infrastrukturou</li>
+<li>Instalace a zabezpečení operačního systému probíhá manuálně</li>
+<li>Správa certifikátů vyžaduje pečlivé plánování IP adres a hostnames</li>
+</ul>
+<h3 id="22-architektura-reseni">2.2 Architektura řešení</h3>
+<p>Tato platforma řeší výše uvedené výzvy prostřednictvím vrstveného přístupu:</p>
+<pre><code>┌─────────────────────────────────────────────────────────────────────┐
+│                   Vrstva generování konfigurace                      │
+│                                                                       │
+│   variables.yaml ──► Šablony Jinja2 ──► Vygenerované konfigurace     │
+│   (jediný zdroj)     (18 šablon)        (19+ výstupních souborů)     │
+│                                                                       │
+│   Webové rozhraní (GitHub Pages) ──► Nunjucks v prohlížeči ──► ZIP   │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Vrstva automatizace nasazení                      │
+│                                                                       │
+│   00-validate-environment.sh    Předběžné kontroly                   │
+│   01-configure-os.sh            Zabezpečení OS, SSH klíče, sysctl    │
+│   02-install-haproxy.sh         HAProxy + Keepalived na masterech    │
+│   03-install-k3s-first.sh       Bootstrap prvního serveru (cluster-init)│
+│   04-install-k3s-servers.sh     Připojení dalších serverových uzlů   │
+│   05-install-k3s-agents.sh      Připojení worker uzlů                │
+│   06-install-storage.sh         Nasazení Longhorn nebo local-path    │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       Vrstva infrastruktury                           │
+│                                                                       │
+│   ┌──────────┐  ┌──────────┐  ┌──────────┐                          │
+│   │master-01 │  │master-02 │  │master-03 │  Control Plane (3 uzly)  │
+│   │HAProxy   │  │HAProxy   │  │HAProxy   │                          │
+│   │Keepalived│  │Keepalived│  │Keepalived│                          │
+│   │K3s Server│  │K3s Server│  │K3s Server│                          │
+│   │etcd      │  │etcd      │  │etcd      │                          │
+│   └──────────┘  └──────────┘  └──────────┘                          │
+│         │              │              │                               │
+│         └──────────────┼──────────────┘                              │
+│                        │ VIP: 192.168.1.100                          │
+│                        │                                             │
+│   ┌──────────┐  ┌──────────┐  ┌──────────┐                          │
+│   │worker-01 │  │worker-02 │  │worker-03 │  Data Plane (N uzlů)    │
+│   │K3s Agent │  │K3s Agent │  │K3s Agent │                          │
+│   │Longhorn  │  │Longhorn  │  │Longhorn  │                          │
+│   └──────────┘  └──────────┘  └──────────┘                          │
+└─────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="23-struktura-repozitare">2.3 Struktura repozitáře</h3>
+<pre><code>k3s/
+├── variables.yaml                  # Jediný zdroj pravdy
+├── generate.py                     # Python renderer šablon
+├── lint_configs.py                 # Vlastní linter konfigurace
+├── requirements.txt                # Závislosti Pythonu
+├── pyproject.toml                  # Konfigurace linteru Ruff
+├── .yamllint.yaml                  # Pravidla pro lint YAML souborů
+├── .shellcheckrc                   # Konfigurace lintu shellu
+├── .github/workflows/
+│   ├── lint.yaml                   # CI: lint všech typů souborů
+│   └── pages.yaml                  # CI: nasazení webového UI na GitHub Pages
+├── docs/                           # Podrobná dokumentace krok za krokem
+├── templates/jinja2/               # 18 šablon Jinja2 pro konfiguraci
+├── configs/                        # Statické referenční konfigurace
+├── scripts/                        # 7 automatizačních skriptů pro nasazení
+├── web/                            # Generátor konfigurace v prohlížeči
+└── generated/                      # Výstupní adresář (v .gitignore)
+</code></pre>
+<hr />
+<h2 id="3-architektura">3. Architektura</h2>
+<h3 id="31-topologie-vysoke-dostupnosti">3.1 Topologie vysoké dostupnosti</h3>
+<p>Cluster využívá <strong>3-uzlový control plane</strong> s <strong>vestavěným etcd</strong> pro konsenzus, před kterým stojí <strong>HAProxy</strong> pro rozložení zátěže API a <strong>Keepalived</strong> pro failover virtuální IP adresy (VIP).</p>
+<pre><code>                    ┌─────────────────────────────┐
+                    │          Klienti             │
+                    │   (kubectl, CI/CD, aplikace) │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌─────────────────────────────┐
+                    │     Virtuální IP (VIP)       │
+                    │    192.168.1.100:6443        │
+                    │    fd00::100:6443            │
+                    │  (spravováno Keepalived)     │
+                    └──────────────┬───────────────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+              ▼                    ▼                    ▼
+    ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+    │   HAProxy       │  │   HAProxy       │  │   HAProxy       │
+    │   (frontend)    │  │   (frontend)    │  │   (frontend)    │
+    │   master-01     │  │   master-02     │  │   master-03     │
+    │                 │  │                 │  │                 │
+    │   K3s Server    │  │   K3s Server    │  │   K3s Server    │
+    │   API Server    │  │   API Server    │  │   API Server    │
+    │   Controller    │  │   Controller    │  │   Controller    │
+    │   Scheduler     │  │   Scheduler     │  │   Scheduler     │
+    │                 │  │                 │  │                 │
+    │   etcd          │  │   etcd          │  │   etcd          │
+    │  (vestavěný)    │  │  (vestavěný)    │  │  (vestavěný)    │
+    └─────────────────┘  └─────────────────┘  └─────────────────┘
+              │                    │                    │
+              │       Replikace mezi etcd peery        │
+              └────────────────────┼────────────────────┘
+                                   │
+                                   ▼
+    ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+    │   K3s Agent     │  │   K3s Agent     │  │   K3s Agent     │
+    │   kubelet       │  │   kubelet       │  │   kubelet       │
+    │   kube-proxy    │  │   kube-proxy    │  │   kube-proxy    │
+    │   Longhorn      │  │   Longhorn      │  │   Longhorn      │
+    │                 │  │                 │  │                 │
+    │   worker-01     │  │   worker-02     │  │   worker-03     │
+    └─────────────────┘  └─────────────────┘  └─────────────────┘
+</code></pre>
+<h3 id="32-domeny-selhani">3.2 Domény selhání</h3>
+<p>Architektura toleruje následující selhání bez přerušení služby:</p>
+<table>
+<thead>
+<tr>
+<th>Scénář selhání</th>
+<th>Dopad</th>
+<th>Obnova</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 master uzel mimo provoz</td>
+<td>Žádný dopad (kvórum etcd 2/3 zachováno)</td>
+<td>Automatický failover VIP</td>
+</tr>
+<tr>
+<td>1 worker uzel mimo provoz</td>
+<td>Pody přeplánovány na zbývající workery</td>
+<td>Automaticky Kubernetes</td>
+</tr>
+<tr>
+<td>HAProxy na 1 masteru</td>
+<td>VIP se přesune na zdravý HAProxy uzel</td>
+<td>Failover Keepalived (&lt;3 s)</td>
+</tr>
+<tr>
+<td>Síťová partice (1 master izolován)</td>
+<td>Kvórum udrženo většinou</td>
+<td>Automatická rekonsolidace</td>
+</tr>
+<tr>
+<td>2 master uzly mimo provoz</td>
+<td><strong>Cluster nedostupný</strong> (ztráta kvóra)</td>
+<td>Vyžadován manuální zásah</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-sitovy-tok">3.3 Síťový tok</h3>
+<pre><code>kubectl ──► VIP:6443 ──► HAProxy ──► K3s API Server (kterýkoli ze 3 masterů)
+                              │
+                              ├──► master-01:6443 (kontrola: TCP health)
+                              ├──► master-02:6443 (kontrola: TCP health)
+                              └──► master-03:6443 (kontrola: TCP health)
+
+Worker Agent ──► VIP:6443 ──► HAProxy ──► K3s API Server
+                                              │
+                                              ▼
+                                     Registrace uzlu
+                                     Příjem specifikací podů
+                                     Hlášení stavu
+</code></pre>
+<hr />
+<h2 id="4-podrobny-popis-komponent">4. Podrobný popis komponent</h2>
+<h3 id="41-vrstva-operacniho-systemu">4.1 Vrstva operačního systému</h3>
+<h4 id="suse-linux-enterprise-micro-sle-micro">SUSE Linux Enterprise Micro (SLE Micro)</h4>
+<p><strong>SLE Micro</strong> je komerčně podporovaný neměnný operační systém od společnosti SUSE, speciálně vytvořený pro kontejnerizované a virtualizované workloady. Klíčové vlastnosti:</p>
+<ul>
+<li><strong>Neměnný kořenový souborový systém</strong>: Kořenový oddíl je jen pro čtení. Změny se aplikují prostřednictvím <code>transactional-update</code>, který vytvoří nový Btrfs snapshot. Systém se při dalším restartu spustí do nového snapshotu, což poskytuje atomické upgrady s možností okamžitého návratu.</li>
+<li><strong>Minimální plocha pro útoky</strong>: Dodáván pouze s nezbytnými balíčky. Žádné desktopové prostředí, žádní nepotřební démoni.</li>
+<li><strong>SELinux/AppArmor</strong>: Povinná kontrola přístupu ve výchozím nastavení zapnuta.</li>
+<li><strong>Komerční životní cyklus</strong>: 4+ let údržby a bezpečnostních aktualizací na hlavní verzi.</li>
+<li><strong>Certifikace</strong>: K dispozici varianty certifikované FIPS 140-2 a Common Criteria.</li>
+</ul>
+<h4 id="opensuse-microos">openSUSE MicroOS</h4>
+<p><strong>openSUSE MicroOS</strong> je komunitní upstream verze SLE Micro sdílející stejnou architekturu:</p>
+<ul>
+<li><strong>Průběžná vydání</strong>: Kontinuální aktualizace (založeno na Tumbleweed).</li>
+<li><strong>Identický mechanismus transactional-update</strong>: Stejný systém atomických upgradů.</li>
+<li><strong>Nevyžaduje registraci</strong>: Volně dostupný, podporovaný komunitou.</li>
+<li><strong>Ideální pro</strong>: Vývojové clustery, proof-of-concept, komunitní produkční prostředí.</li>
+</ul>
+<h4 id="mechanismus-transakcnich-aktualizaci">Mechanismus transakčních aktualizací</h4>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                   Kořenový souborový systém Btrfs             │
+│                                                              │
+│  Snapshot #1 (aktuální, jen pro čtení)                      │
+│  └── / (běžící systém)                                      │
+│                                                              │
+│  Snapshot #2 (vytvořen pomocí transactional-update)          │
+│  └── / (modifikovaný systém: nové balíčky, změny konfigurace)│
+│                                                              │
+│  transactional-update reboot ──► Spuštění do Snapshotu #2   │
+│                                                              │
+│  Pokud Snapshot #2 selže:                                    │
+│  └── Návrat na Snapshot #1 (okamžitý, bez ztráty dat)       │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<p>Nástroj <code>transactional-update</code> je výhradním mechanismem pro modifikaci operačního systému:</p>
+<pre><code class="language-bash"># Instalace balíčků (projeví se po restartu)
+transactional-update pkg install open-iscsi nfs-client
+
+# Aplikace všech čekajících aktualizací
+transactional-update up
+
+# Restart do nového snapshotu
+transactional-update reboot
+</code></pre>
+<h3 id="42-distribuce-k3s-kubernetes">4.2 Distribuce K3s Kubernetes</h3>
+<h4 id="co-je-k3s">Co je K3s?</h4>
+<p><strong>K3s</strong> je certifikovaná produkční distribuce Kubernetes vyvinutá společností SUSE/Rancher. Balí celý control plane Kubernetes do jednoho binárního souboru (~60 MB), což ji činí vhodnou pro prostředí s omezenými zdroji, edge computing a nasazení na baremetal, kde je provozní režie clusterů založených na kubeadm nežádoucí.</p>
+<h4 id="k3s-vs-upstream-kubernetes">K3s vs upstream Kubernetes</h4>
+<table>
+<thead>
+<tr>
+<th>Vlastnost</th>
+<th>K3s</th>
+<th>Upstream (kubeadm)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Velikost binárního souboru</td>
+<td>~60 MB</td>
+<td>~300+ MB (více binárních souborů)</td>
+</tr>
+<tr>
+<td>Paměťová náročnost</td>
+<td>~512 MB (server)</td>
+<td>~1-2 GB (server)</td>
+</tr>
+<tr>
+<td>Instalace</td>
+<td>Jeden příkaz curl</td>
+<td>Vícekrokový postup, správa certifikátů</td>
+</tr>
+<tr>
+<td>etcd</td>
+<td>Vestavěný (nebo externí)</td>
+<td>Nutno provisnout samostatně</td>
+</tr>
+<tr>
+<td>Runtime kontejnerů</td>
+<td>containerd (vestavěný)</td>
+<td>Nutno instalovat samostatně</td>
+</tr>
+<tr>
+<td>Síťování</td>
+<td>Flannel (vestavěný)</td>
+<td>Nutno instalovat CNI plugin</td>
+</tr>
+<tr>
+<td>Správa certifikátů</td>
+<td>Automatická rotace</td>
+<td>Manuální konfigurace</td>
+</tr>
+<tr>
+<td>Upgrade</td>
+<td>Výměna binárního souboru + restart</td>
+<td>Postup postupného upgradu</td>
+</tr>
+</tbody>
+</table>
+<h4 id="architektura-serveru-k3s-control-plane">Architektura serveru K3s (Control Plane)</h4>
+<p>Každý serverový uzel K3s provozuje:</p>
+<pre><code>┌──────────────────────────────────────────────────────┐
+│                    Proces K3s Server                   │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ API Server  │  │ Controller  │  │  Scheduler  │  │
+│  │             │  │  Manager    │  │             │  │
+│  └──────┬──────┘  └─────────────┘  └─────────────┘  │
+│         │                                            │
+│  ┌──────▼──────┐  ┌─────────────┐                   │
+│  │   etcd      │  │ containerd  │                   │
+│  │ (vestavěný) │  │             │                   │
+│  └─────────────┘  └─────────────┘                   │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────┐                   │
+│  │  Flannel    │  │ CoreDNS     │                   │
+│  │  (CNI)      │  │             │                   │
+│  └─────────────┘  └─────────────┘                   │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="architektura-agenta-k3s-worker">Architektura agenta K3s (Worker)</h4>
+<p>Každý agent K3s provozuje:</p>
+<pre><code>┌──────────────────────────────────────────────────────┐
+│                    Proces K3s Agent                    │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │  kubelet    │  │ kube-proxy  │  │ containerd  │  │
+│  │             │  │             │  │             │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────────────────────┐   │
+│  │  Flannel    │  │  Workload pody              │   │
+│  │  (CNI)      │  │  (uživatelské aplikace)     │   │
+│  └─────────────┘  └─────────────────────────────┘   │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="vestaveny-cluster-etcd">Vestavěný cluster etcd</h4>
+<p>K3s využívá vestavěný cluster etcd pro ukládání veškerého stavu clusteru. Se 3 serverovými uzly operuje cluster etcd s algoritmem konsenzu Raft:</p>
+<ul>
+<li><strong>Kvórum</strong>: 2 ze 3 uzlů se musí shodnout na zápisech (většina)</li>
+<li><strong>Volba vedoucího</strong>: Jeden uzel je vedoucí (leader); ostatní jsou následovníci (followers)</li>
+<li><strong>Replikace dat</strong>: Veškerá data jsou replikována na všechny 3 uzly</li>
+<li><strong>Tolerance selhání</strong>: Přežije selhání 1 uzlu bez ztráty dat</li>
+</ul>
+<pre><code>         ┌─────────────┐
+         │   etcd      │
+         │  (leader)   │
+         │  master-01  │
+         └──────┬──────┘
+                │
+       ┌────────┴────────┐
+       │  Raft konsenzus  │
+       │  replikace       │
+       ▼                 ▼
+┌─────────────┐   ┌─────────────┐
+│   etcd      │   │   etcd      │
+│ (follower)  │   │ (follower)  │
+│  master-02  │   │  master-03  │
+└─────────────┘   └─────────────┘
+</code></pre>
+<h4 id="sekvence-bootstrapu-clusteru-k3s">Sekvence bootstrapu clusteru K3s</h4>
+<p>Inicializace clusteru probíhá v přesně daném pořadí:</p>
+<ol>
+<li><strong>První server</strong> se spustí s <code>--cluster-init</code>, čímž vytvoří jednouzlový cluster etcd</li>
+<li><strong>Druhý server</strong> se připojí přes <code>--server https://&lt;první&gt;:6443</code>, stane se followerem etcd</li>
+<li><strong>Třetí server</strong> se připojí obdobně, čímž se dokončí 3-uzlové kvórum etcd</li>
+<li><strong>Agenti</strong> se připojují přes VIP (<code>https://&lt;VIP&gt;:6443</code>) pro zajištění vysoké dostupnosti</li>
+</ol>
+<pre><code>Čas ──────────────────────────────────────────────────────────────►
+
+master-01: [cluster-init] ──► [etcd leader, 1/1] ──► [etcd leader, 1/3]
+                                                              │
+master-02:                    [join] ──► [etcd follower, 2/3] ─┤
+                                                              │
+master-03:                              [join] ──► [follower, 3/3]
+                                                              │
+                                              Kvórum dosaženo ─┘
+                                                              │
+worker-01:                                         [join přes VIP]
+worker-02:                                         [join přes VIP]
+worker-03:                                         [join přes VIP]
+</code></pre>
+<h4 id="architektura-tls-certifikatu">Architektura TLS certifikátů</h4>
+<p>K3s automaticky generuje a spravuje TLS certifikáty. Příznaky <code>--tls-san</code> zajišťují platnost certifikátů pro všechny přístupové cesty:</p>
+<pre><code>Subject Alternative Names certifikátu:
+├── 192.168.1.100        (VIP IPv4)
+├── fd00::100            (VIP IPv6)
+├── k3s-api.k3s.local    (VIP hostname)
+├── master-01.k3s.local  (FQDN uzlu)
+├── master-01            (krátký název)
+├── 192.168.1.101        (IP uzlu)
+├── master-02.k3s.local
+├── master-02
+├── 192.168.1.102
+├── master-03.k3s.local
+├── master-03
+└── 192.168.1.103
+</code></pre>
+<p>To zajišťuje, že <code>kubectl</code> se může připojit přes:
+- VIP (běžný provoz)
+- Jakoukoli individuální IP adresu masteru (ladění/nouzový přístup)
+- Jakoukoli variantu hostname</p>
+<h3 id="43-load-balancer-haproxy">4.3 Load balancer HAProxy</h3>
+<h4 id="ucel">Účel</h4>
+<p>HAProxy slouží jako <strong>load balancer na vrstvě 4 (TCP)</strong> pro API server K3s. Distribuuje příchozí spojení na portu 6443 mezi všechny tři master uzly a poskytuje:</p>
+<ul>
+<li><strong>Rozložení zátěže</strong>: Round-robin balancování mezi zdravými backendy</li>
+<li><strong>Kontroly zdraví</strong>: TCP sondy každých 10 sekund</li>
+<li><strong>Automatický failover</strong>: Odstranění nezdravých backendů z poolu po 2 neúspěšných kontrolách</li>
+<li><strong>Perzistence spojení</strong>: Udržení stávajících spojení během přechodů backendů</li>
+</ul>
+<h4 id="architektura-konfigurace-haproxy">Architektura konfigurace HAProxy</h4>
+<pre><code>┌──────────────────────────────────────────────────────┐
+│                   Proces HAProxy                       │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │              Frontend: k3s_api_frontend          │ │
+│  │              bind *:6443 (režim TCP)            │ │
+│  └──────────────────────┬──────────────────────────┘ │
+│                          │                            │
+│  ┌──────────────────────▼──────────────────────────┐ │
+│  │              Backend: k3s_api_backend            │ │
+│  │              balance: roundrobin                 │ │
+│  │                                                  │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │ │
+│  │  │master-01 │  │master-02 │  │master-03 │      │ │
+│  │  │:6443     │  │:6443     │  │:6443     │      │ │
+│  │  │ check ✓  │  │ check ✓  │  │ check ✓  │      │ │
+│  │  └──────────┘  └──────────┘  └──────────┘      │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │              Listen: stats                       │ │
+│  │              bind *:8404 (režim HTTP)            │ │
+│  │              /stats dashboard                    │ │
+│  └─────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="parametry-kontroly-zdravi">Parametry kontroly zdraví</h4>
+<table>
+<thead>
+<tr>
+<th>Parametr</th>
+<th>Hodnota</th>
+<th>Popis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inter</code></td>
+<td>10 s</td>
+<td>Interval kontroly, když je server NAHOŘE</td>
+</tr>
+<tr>
+<td><code>downinter</code></td>
+<td>5 s</td>
+<td>Interval kontroly, když je server DOLE</td>
+</tr>
+<tr>
+<td><code>rise</code></td>
+<td>2</td>
+<td>Počet po sobě jdoucích úspěšných kontrol pro označení NAHOŘE</td>
+</tr>
+<tr>
+<td><code>fall</code></td>
+<td>2</td>
+<td>Počet po sobě jdoucích neúspěšných kontrol pro označení DOLE</td>
+</tr>
+<tr>
+<td><code>slowstart</code></td>
+<td>60 s</td>
+<td>Postupné navyšování provozu po obnově</td>
+</tr>
+<tr>
+<td><code>maxconn</code></td>
+<td>250</td>
+<td>Maximální počet současných spojení na backend</td>
+</tr>
+</tbody>
+</table>
+<h4 id="proc-rezim-tcp-vrstva-4">Proč režim TCP (vrstva 4)?</h4>
+<p>HAProxy pracuje v režimu TCP (nikoli HTTP), protože:</p>
+<ol>
+<li>API K3s používá <strong>vzájemné TLS</strong> (mTLS) — HAProxy nemůže ukončit spojení</li>
+<li>Režim TCP má <strong>nižší režii</strong> (žádné parsování HTTP)</li>
+<li>Protokol API je <strong>HTTP/2</strong> se streamováním (watches) — režim TCP toto zpracovává nativně</li>
+<li>Kontroly zdraví používají <strong>TCP connect</strong> (port 6443 odpovídá = zdravý)</li>
+</ol>
+<h3 id="44-keepalived-a-virtualni-ip">4.4 Keepalived a virtuální IP</h3>
+<h4 id="ucel_1">Účel</h4>
+<p>Keepalived implementuje <strong>Virtual Router Redundancy Protocol (VRRP)</strong> pro správu plovoucí virtuální IP adresy (VIP) mezi třemi master uzly. Tato VIP je jediným vstupním bodem pro veškerý přístup k API.</p>
+<h4 id="provoz-vrrp">Provoz VRRP</h4>
+<pre><code>Běžný provoz:                         Po selhání master-01:
+
+  master-01 (MASTER, priorita 101)      master-01 (MIMO PROVOZ)
+  ├── VIP: 192.168.1.100 ✓             ├── VIP: (uvolněna)
+  ├── Odesílá VRRP oznámení            │
+  │                                     │
+  master-02 (BACKUP, priorita 100)      master-02 (MASTER, priorita 100)
+  ├── VIP: (pohotovost)                ├── VIP: 192.168.1.100 ✓
+  ├── Naslouchá oznámením              ├── Odesílá VRRP oznámení
+  │                                     │
+  master-03 (BACKUP, priorita 99)       master-03 (BACKUP, priorita 99)
+  ├── VIP: (pohotovost)                ├── VIP: (pohotovost)
+  ├── Naslouchá oznámením              ├── Naslouchá oznámením
+</code></pre>
+<h4 id="sekvence-failoveru">Sekvence failoveru</h4>
+<ol>
+<li>Master-01 (MASTER) odesílá VRRP oznámení každou 1 sekundu</li>
+<li>Master-02 a master-03 (BACKUP) naslouchají těmto oznámením</li>
+<li>Pokud oznámení přestanou přicházet po dobu 3 sekund (fall × interval):</li>
+<li>BACKUP s nejvyšší prioritou (master-02, priorita 100) přejde do role MASTER</li>
+<li>Odešle Gratuitous ARP oznamující VIP na své MAC adrese</li>
+<li>Všechny síťové přepínače aktualizují své MAC tabulky</li>
+<li>Provoz okamžitě proudí na master-02</li>
+<li>Když se master-01 obnoví:</li>
+<li>S povoleným preemption: master-01 si znovu nárokuje roli MASTER (vyšší priorita)</li>
+<li>Bez preemption: master-02 si ponechá roli MASTER, dokud neselže</li>
+</ol>
+<h4 id="skript-pro-sledovani-zdravi">Skript pro sledování zdraví</h4>
+<p>Keepalived používá skript pro kontrolu zdraví, který váže vlastnictví VIP na stav HAProxy:</p>
+<pre><code class="language-bash">vrrp_script check_haproxy {
+    script &quot;/usr/bin/killall -0 haproxy&quot;   # Signál 0 = kontrola existence procesu
+    interval 2                              # Kontrola každé 2 sekundy
+    weight 2                                # Přidání 2 k prioritě, pokud je zdravý
+    fall 3                                  # 3 selhání pro označení MIMO PROVOZ
+    rise 2                                  # 2 úspěchy pro označení V PROVOZU
+}
+</code></pre>
+<p>To zajišťuje, že VIP se nachází pouze na uzlu, kde HAProxy skutečně běží a přijímá spojení.</p>
+<h4 id="dual-stack-vip-ipv4-ipv6">Dual-stack VIP (IPv4 + IPv6)</h4>
+<p>Konfigurace VIP zahrnuje jak IPv4, tak IPv6 adresy:</p>
+<pre><code>virtual_ipaddress {
+    192.168.1.100/24 dev eth0    # IPv4 VIP
+    fd00::100/64 dev eth0        # IPv6 VIP
+}
+</code></pre>
+<p>Obě adresy se přesouvají společně, čímž se udržuje dual-stack dostupnost API.</p>
+<h3 id="45-distribuovane-uloziste-longhorn">4.5 Distribuované úložiště Longhorn</h3>
+<h4 id="co-je-longhorn">Co je Longhorn?</h4>
+<p><strong>Longhorn</strong> je open-source cloudově nativní distribuovaný systém blokového úložiště vyvinutý společností SUSE/Rancher pro Kubernetes. Poskytuje:</p>
+<ul>
+<li><strong>Replikované blokové úložiště</strong>: Každý svazek je replikován na více uzlů</li>
+<li><strong>Snapshoty a zálohy</strong>: Snapshoty k určitému časovému bodu s cíli zálohování na S3/NFS</li>
+<li><strong>Zotavení po havárii</strong>: Replikace mezi clustery pro scénáře DR</li>
+<li><strong>Samoopravitelnost</strong>: Automatická obnova replik při selhání uzlů</li>
+<li><strong>Thin provisioning</strong>: Úložiště alokováno na vyžádání, nikoli předem</li>
+<li><strong>Webové rozhraní</strong>: Vizuální dashboard pro správu svazků</li>
+</ul>
+<h4 id="architektura-longhorn">Architektura Longhorn</h4>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│                    Cluster Kubernetes                             │
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │              Longhorn Manager (DaemonSet)                  │   │
+│  │              Běží na všech uzlech                          │   │
+│  │              Orchestruje svazky, repliky, enginy           │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                   │
+│  ┌──────────────────┐  ┌──────────────────┐                     │
+│  │  Longhorn CSI    │  │  Longhorn UI     │                     │
+│  │  Driver          │  │  (Deployment)    │                     │
+│  │  (DaemonSet)     │  │  Dashboard       │                     │
+│  └──────────────────┘  └──────────────────┘                     │
+│                                                                   │
+│  Architektura jednotlivých svazků:                                │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │  Svazek: my-app-data (10Gi, 3 repliky)                   │    │
+│  │                                                           │    │
+│  │  ┌─────────────┐                                         │    │
+│  │  │   Engine    │  (běží na uzlu, kde je pod naplánován)  │    │
+│  │  │  (iSCSI)    │                                         │    │
+│  │  └──────┬──────┘                                         │    │
+│  │         │                                                 │    │
+│  │    ┌────┼────────────────┐                                │    │
+│  │    │    │                │                                │    │
+│  │    ▼    ▼                ▼                                │    │
+│  │  ┌────────┐  ┌────────┐  ┌────────┐                      │    │
+│  │  │Replika │  │Replika │  │Replika │                      │    │
+│  │  │worker-1│  │worker-2│  │worker-3│                      │    │
+│  │  └────────┘  └────────┘  └────────┘                      │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="cesta-zapisu">Cesta zápisu</h4>
+<p>Když pod zapíše data na svazek Longhorn:</p>
+<ol>
+<li>Zápis vstoupí do <strong>Enginu</strong> (iSCSI target na uzlu podu)</li>
+<li>Engine <strong>synchronně replikuje</strong> na všechny nakonfigurované repliky</li>
+<li>Zápis je potvrzen až poté, co <strong>všechny repliky</strong> potvrdí</li>
+<li>Pokud replika selže, Engine ji označí jako degradovanou a pokračuje se zbývajícími replikami</li>
+<li>Longhorn Manager detekuje degradovaný stav a naplánuje <strong>obnovu</strong> na zdravém uzlu</li>
+</ol>
+<h4 id="porovnani-longhorn-vs-local-path">Porovnání Longhorn vs Local-Path</h4>
+<table>
+<thead>
+<tr>
+<th>Vlastnost</th>
+<th>Longhorn</th>
+<th>Local-Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Replikace</td>
+<td>Ano (konfigurovatelná, 1-5 replik)</td>
+<td>Ne (jeden uzel)</td>
+</tr>
+<tr>
+<td>Tolerance selhání uzlu</td>
+<td>Ano (data přežijí ztrátu uzlu)</td>
+<td>Ne (data ztracena při selhání uzlu)</td>
+</tr>
+<tr>
+<td>Snapshoty</td>
+<td>Ano (inkrementální, efektivní)</td>
+<td>Ne</td>
+</tr>
+<tr>
+<td>Zálohy</td>
+<td>Ano (cíle S3, NFS)</td>
+<td>Ne (manuální)</td>
+</tr>
+<tr>
+<td>Výkonnostní režie</td>
+<td>~10-15 % (náklady na replikaci)</td>
+<td>Žádná (přímé diskové I/O)</td>
+</tr>
+<tr>
+<td>Složitost</td>
+<td>Střední (nasazení přes Helm)</td>
+<td>Minimální (vestavěný v K3s)</td>
+</tr>
+<tr>
+<td>Spotřeba zdrojů</td>
+<td>~500 MB RAM na uzel</td>
+<td>Zanedbatelná</td>
+</tr>
+<tr>
+<td>Případ použití</td>
+<td>Produkce, stavové workloady</td>
+<td>Vývoj, efemérní data</td>
+</tr>
+</tbody>
+</table>
+<h3 id="46-sitova-architektura-dhcpv4dhcpv6">4.6 Síťová architektura (DHCPv4/DHCPv6)</h3>
+<h4 id="proc-dhcp-se-statickymi-pronajmy">Proč DHCP se statickými pronájmy?</h4>
+<p>Toto nasazení používá <strong>DHCP</strong> (jak v4, tak v6) pro konfiguraci sítě místo statické konfigurace na úrovni OS, protože:</p>
+<ol>
+<li><strong>Centralizovaná správa</strong>: Veškeré adresování je spravováno na DHCP serveru</li>
+<li><strong>Konzistence</strong>: Stejný mechanismus jako u ostatních síťových zařízení</li>
+<li><strong>Flexibilita</strong>: Změna adres nevyžaduje rekonfiguraci OS</li>
+<li><strong>Kompatibilita s IPv6</strong>: SLAAC a DHCPv6 s tímto modelem přirozeně fungují</li>
+</ol>
+<p>Avšak <strong>statické DHCP pronájmy</strong> (rezervace) jsou povinné, protože:</p>
+<ul>
+<li>Certifikáty K3s jsou vázány na konkrétní IP adresy</li>
+<li>Členství v clusteru etcd vyžaduje stabilní adresování</li>
+<li>Backendy HAProxy jsou nakonfigurovány s pevnými IP adresami</li>
+<li>VIP Keepalived musí být předvídatelná</li>
+</ul>
+<h4 id="ipv6-a-forwarding-problem-accept_ra">IPv6 a forwarding: Problém accept_ra</h4>
+<p>Existuje kritická interakce mezi forwardováním IPv6 a zpracováním Router Advertisement (RA):</p>
+<pre><code>Výchozí chování jádra Linuxu:
+  net.ipv6.conf.all.forwarding = 0  →  accept_ra = 1 (zpracovává RA) ✓
+  net.ipv6.conf.all.forwarding = 1  →  accept_ra = 1 (IGNORUJE RA)  ✗
+
+K3s vyžaduje forwarding = 1 pro síťování podů.
+Toto NARUŠÍ SLAAC a získávání adresy DHCPv6.
+
+Řešení:
+  net.ipv6.conf.all.accept_ra = 2   →  Zpracovává RA i s forwardováním ✓
+  net.ipv6.conf.eth0.accept_ra = 2  →  Přepsání pro jednotlivé rozhraní  ✓
+</code></pre>
+<p>Tato platforma automaticky konfiguruje <code>accept_ra = 2</code> na všech uzlech, aby bylo zajištěno, že adresování IPv6 nadále funguje se zapnutým předáváním paketů.</p>
+<h4 id="dual-stack-sitovani">Dual-stack síťování</h4>
+<p>Cluster pracuje v plném dual-stack režimu:</p>
+<table>
+<thead>
+<tr>
+<th>Síť</th>
+<th>IPv4</th>
+<th>IPv6</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Síť uzlů</td>
+<td>192.168.1.0/24</td>
+<td>fd00::/64</td>
+</tr>
+<tr>
+<td>Pod CIDR</td>
+<td>10.42.0.0/16</td>
+<td>fd42::/48</td>
+</tr>
+<tr>
+<td>Service CIDR</td>
+<td>10.43.0.0/16</td>
+<td>fd43::/112</td>
+</tr>
+<tr>
+<td>VIP</td>
+<td>192.168.1.100</td>
+<td>fd00::100</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-postup-nasazeni">5. Postup nasazení</h2>
+<p>Nasazení probíhá v přísném sekvenčním pořadí. Každý krok závisí na úspěšném dokončení předchozího kroku.</p>
+<h3 id="krok-0-validace-prostredi">Krok 0: Validace prostředí</h3>
+<pre><code class="language-bash">./scripts/00-validate-environment.sh
+</code></pre>
+<p><strong>Účel</strong>: Ověření všech předpokladů před provedením jakýchkoli změn.</p>
+<p><strong>Prováděné kontroly</strong>:
+1. Inventární soubor existuje a je parsovatelný
+2. Požadované lokální nástroje jsou přítomny (ssh, scp, curl, openssl)
+3. Soubor SSH klíče existuje na konfigurované cestě
+4. SSH konektivita ke všem master uzlům (timeout: 10 s na každý)
+5. SSH konektivita ke všem worker uzlům
+6. Skutečné IP adresy odpovídají očekávaným DHCP pronájmům (ověření funkčnosti DHCP)
+7. Identifikace operačního systému na každém uzlu</p>
+<p><strong>Chování při ukončení</strong>: Ukončí se s kódem 1, pokud jakákoli kontrola selže, a nahlásí všechna selhání.</p>
+<h3 id="krok-1-konfigurace-operacniho-systemu">Krok 1: Konfigurace operačního systému</h3>
+<pre><code class="language-bash">./scripts/01-configure-os.sh
+</code></pre>
+<p><strong>Účel</strong>: Konfigurace všech uzlů pro provoz K3s po instalaci OS.</p>
+<p><strong>Akce na každém uzlu</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Akce</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nastavení hostname</td>
+<td><code>hostnamectl set-hostname &lt;hostname&gt;.&lt;doména&gt;</code></td>
+</tr>
+<tr>
+<td>Konfigurace /etc/hosts</td>
+<td>Všechny IP uzlů (IPv4 + IPv6) pro lokální rozlišení</td>
+</tr>
+<tr>
+<td>Parametry jádra</td>
+<td>ip_forward, bridge-nf-call, accept_ra=2, inotify, conntrack</td>
+</tr>
+<tr>
+<td>Moduly jádra</td>
+<td>br_netfilter, overlay, ip_vs, ip_vs_rr/wrr/sh, nf_conntrack</td>
+</tr>
+<tr>
+<td>Limity souborů</td>
+<td>nofile=65536, nproc=65536 (soft+hard)</td>
+</tr>
+<tr>
+<td>Firewall</td>
+<td>Otevřené porty: 6443, 2379, 2380, 10250, 8472, 51820 atd.</td>
+</tr>
+<tr>
+<td>Balíčky</td>
+<td>open-iscsi, nfs-client, cryptsetup, apparmor-parser</td>
+</tr>
+<tr>
+<td>Non-local bind</td>
+<td>Pro HAProxy (pouze mastery): ip_nonlocal_bind=1</td>
+</tr>
+<tr>
+<td>SSH klíče</td>
+<td>Nasazení authorized_keys + zabezpečení sshd</td>
+</tr>
+<tr>
+<td>Klíče z GitHubu</td>
+<td>Stažení z https://github.com/&lt;uživatel&gt;.keys</td>
+</tr>
+</tbody>
+</table>
+<h3 id="krok-2-instalace-haproxy-keepalived">Krok 2: Instalace HAProxy + Keepalived</h3>
+<pre><code class="language-bash">./scripts/02-install-haproxy.sh
+</code></pre>
+<p><strong>Účel</strong>: Instalace a konfigurace load balanceru API na všech master uzlech.</p>
+<p><strong>Sekvence</strong>:
+1. Generování konfigurace HAProxy (backendy z inventáře)
+2. Generování konfigurace Keepalived specifické pro každý uzel (různá priorita na uzel)
+3. Pro každý master uzel:
+   - Instalace balíčků haproxy a keepalived
+   - Nasazení haproxy.cfg
+   - Nasazení keepalived.conf (specifické pro uzel)
+   - Povolení a spuštění služeb
+4. Ověření, že VIP je přiřazena uzlu s nejvyšší prioritou
+5. Ověření, že HAProxy naslouchá na portu 6443</p>
+<h3 id="krok-3-bootstrap-prvniho-serveru-k3s">Krok 3: Bootstrap prvního serveru K3s</h3>
+<pre><code class="language-bash">./scripts/03-install-k3s-first.sh
+</code></pre>
+<p><strong>Účel</strong>: Inicializace clusteru K3s na prvním master uzlu.</p>
+<p><strong>Kritické detaily</strong>:
+- Používá příznak <code>--cluster-init</code> (vytvoří jednouzlový cluster etcd)
+- Generuje nebo použije poskytnutý token clusteru
+- Zahrnuje všechny TLS SAN (VIP, všechny IP masterů, všechny hostnames)
+- Konfiguruje dual-stack CIDR
+- Zakáže výchozí Traefik a ServiceLB
+- Čeká, dokud uzel nedosáhne stavu Ready
+- Uloží token do lokálního souboru pro následující skripty</p>
+<h3 id="krok-4-pripojeni-dalsich-serveru">Krok 4: Připojení dalších serverů</h3>
+<pre><code class="language-bash">./scripts/04-install-k3s-servers.sh
+</code></pre>
+<p><strong>Účel</strong>: Připojení master-02 a master-03 k clusteru.</p>
+<p><strong>Klíčový rozdíl od kroku 3</strong>: Používá <code>--server https://&lt;IP-prvního-masteru&gt;:6443</code> místo <code>--cluster-init</code>. Připojuje se přes přímou IP prvního masteru (nikoli VIP), aby se předešlo problému slepice a vejce během bootstrapu.</p>
+<p><strong>Po dokončení</strong>: Je ustanoveno 3-uzlové kvórum etcd. Cluster je nyní vysoce dostupný.</p>
+<h3 id="krok-5-pripojeni-worker-uzlu">Krok 5: Připojení worker uzlů</h3>
+<pre><code class="language-bash">./scripts/05-install-k3s-agents.sh
+</code></pre>
+<p><strong>Účel</strong>: Registrace všech worker uzlů do clusteru.</p>
+<p><strong>Klíčové detaily</strong>:
+- Workery se připojují přes <strong>VIP</strong> (nikoli jednotlivé mastery) — vysoká dostupnost je již aktivní
+- Používá <code>INSTALL_K3S_EXEC="agent"</code> (nikoli "server")
+- Automaticky aplikuje štítky workerů
+- Čeká, dokud každý uzel nedosáhne stavu Ready</p>
+<h3 id="krok-6-instalace-perzistentniho-uloziste">Krok 6: Instalace perzistentního úložiště</h3>
+<pre><code class="language-bash">STORAGE_PROVIDER=longhorn ./scripts/06-install-storage.sh
+</code></pre>
+<p><strong>Účel</strong>: Nasazení zvoleného řešení perzistentního úložiště.</p>
+<p><strong>Pro Longhorn</strong>:
+1. Ověření předpokladů (open-iscsi, iscsid, datová cesta)
+2. Instalace Helm na prvním masteru
+3. Přidání Helm repozitáře Longhorn
+4. Nasazení s vygenerovaným souborem hodnot
+5. Čekání na připravenost všech podů (timeout: 300 s)
+6. Ověření vytvoření StorageClass</p>
+<p><strong>Pro local-path</strong>:
+1. Vytvoření datového adresáře na všech uzlech
+2. Aplikace konfigurace StorageClass
+3. Nastavení jako výchozí StorageClass</p>
+<hr />
+<h2 id="6-system-generovani-konfigurace">6. Systém generování konfigurace</h2>
+<h3 id="61-filozofie-navrhu">6.1 Filozofie návrhu</h3>
+<p>Systém generování konfigurace se řídí principem <strong>„jediný zdroj pravdy, více výstupů"</strong>:</p>
+<pre><code>                    ┌─────────────────┐
+                    │  variables.yaml  │  ◄── Uživatel edituje TENTO JEDEN soubor
+                    │  (240+ řádků)    │
+                    └────────┬─────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+     ┌────────────┐  ┌────────────┐  ┌────────────┐
+     │  Python    │  │ Webové UI  │  │  Skripty   │
+     │ generate.py│  │ (prohlížeč)│  │  (bash)    │
+     └─────┬──────┘  └─────┬──────┘  └─────┬──────┘
+           │                │               │
+           ▼                ▼               │
+     ┌────────────┐  ┌────────────┐         │
+     │ generated/ │  │ ZIP soubor │         │
+     │ (19 souborů)│  │ (stažení) │         │
+     └────────────┘  └────────────┘         │
+                                            ▼
+                                    ┌────────────┐
+                                    │ Vzdálené   │
+                                    │ SSH spuštění│
+                                    └────────────┘
+</code></pre>
+<h3 id="62-sablonovy-engine">6.2 Šablonový engine</h3>
+<p><strong>Na straně serveru (Python)</strong>: Používá Jinja2 3.1+ s <code>StrictUndefined</code> — jakákoli chybějící proměnná způsobí okamžitou chybu namísto tichého prázdného výstupu.</p>
+<p><strong>Na straně klienta (prohlížeč)</strong>: Používá Nunjucks 3.2.4, JavaScriptový port Jinja2, umožňující identickou syntaxi šablon ve webovém rozhraní.</p>
+<h3 id="63-katalog-sablon">6.3 Katalog šablon</h3>
+<table>
+<thead>
+<tr>
+<th>Šablona</th>
+<th>Výstup</th>
+<th>Typ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>haproxy.cfg.j2</td>
+<td>haproxy/haproxy.cfg</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>keepalived.conf.j2</td>
+<td>keepalived/{hostname}/keepalived.conf</td>
+<td>Per-master</td>
+</tr>
+<tr>
+<td>k3s-server.yaml.j2</td>
+<td>k3s/{hostname}/config.yaml</td>
+<td>Per-master</td>
+</tr>
+<tr>
+<td>k3s-agent.yaml.j2</td>
+<td>k3s/{hostname}/config.yaml</td>
+<td>Per-worker</td>
+</tr>
+<tr>
+<td>dhcpd4-leases.conf.j2</td>
+<td>network/dhcpd4-leases.conf</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>dhcpd6-leases.conf.j2</td>
+<td>network/dhcpd6-leases.conf</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>dnsmasq-leases.conf.j2</td>
+<td>network/dnsmasq-leases.conf</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>hosts.j2</td>
+<td>network/hosts</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>sysctl-k3s.conf.j2</td>
+<td>os/sysctl-k3s.conf</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>ssh-config.j2</td>
+<td>os/ssh-config.txt</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>disk-single-root.xml.j2</td>
+<td>os/disk-partitioning.xml</td>
+<td>Podmíněný</td>
+</tr>
+<tr>
+<td>disk-multipart.xml.j2</td>
+<td>os/disk-partitioning.xml</td>
+<td>Podmíněný</td>
+</tr>
+<tr>
+<td>disk-multidisk.xml.j2</td>
+<td>os/disk-partitioning.xml</td>
+<td>Podmíněný</td>
+</tr>
+<tr>
+<td>disk-ignition.json.j2</td>
+<td>os/disk-ignition.json</td>
+<td>Jednorázový</td>
+</tr>
+<tr>
+<td>longhorn-values.yaml.j2</td>
+<td>storage/longhorn-values.yaml</td>
+<td>Podmíněný</td>
+</tr>
+<tr>
+<td>storageclass-local-path.yaml.j2</td>
+<td>storage/storageclass-local-path.yaml</td>
+<td>Podmíněný</td>
+</tr>
+</tbody>
+</table>
+<h3 id="64-podminene-vykreslovani">6.4 Podmíněné vykreslování</h3>
+<p>Generátor podporuje dva typy podmíněné logiky:</p>
+<ol>
+<li><strong>Dynamický výběr šablony</strong>: Šablona dělení disků je vybrána na základě hodnoty <code>storage.disk_layout</code></li>
+<li><strong>Podmínka poskytovatele</strong>: Šablony úložiště se vykreslí pouze tehdy, když je vybrán odpovídající poskytovatel</li>
+</ol>
+<pre><code class="language-python"># Dynamický výběr šablony
+if target.get(&quot;dynamic_template&quot;):
+    disk_layout = variables[&quot;storage&quot;][&quot;disk_layout&quot;]
+    template_name = layout_map[disk_layout]
+
+# Podmíněné vykreslování
+condition = target.get(&quot;condition&quot;)
+if condition and variables[&quot;storage&quot;][&quot;provider&quot;] != condition:
+    continue  # Přeskočit tuto šablonu
+</code></pre>
+<hr />
+<h2 id="7-strategie-deleni-disku">7. Strategie dělení disků</h2>
+<h3 id="71-moznosti-rozlozeni">7.1 Možnosti rozložení</h3>
+<h4 id="varianta-a-jeden-korenovy-oddil">Varianta A: Jeden kořenový oddíl</h4>
+<pre><code>┌─────────────────────────────────────────┐
+│             /dev/sda                     │
+├──────────┬──────────────────────────────┤
+│ /boot/efi│            /                 │
+│  512 MB  │     (Btrfs, zbytek)          │
+│  (vfat)  │                              │
+│          │  Subvolumes:                  │
+│          │  @/var                        │
+│          │  @/var/lib/rancher            │
+│          │  @/var/lib/longhorn           │
+│          │  @/home                       │
+│          │  @/.snapshots                 │
+└──────────┴──────────────────────────────┘
+</code></pre>
+<h4 id="varianta-b-vice-oddilu-doporuceno">Varianta B: Více oddílů (doporučeno)</h4>
+<pre><code>┌─────────────────────────────────────────┐
+│             /dev/sda                     │
+├──────────┬──────────┬──────────┬────────┤
+│ /boot/efi│    /     │/var/lib/ │Úložiště│
+│  512 MB  │  40 GB   │rancher   │  max   │
+│  (vfat)  │ (Btrfs)  │ 100 GB   │ (XFS)  │
+│          │          │  (XFS)   │        │
+└──────────┴──────────┴──────────┴────────┘
+</code></pre>
+<h4 id="varianta-c-vice-disku">Varianta C: Více disků</h4>
+<pre><code>┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│    /dev/sda      │  │    /dev/sdb      │  │    /dev/sdc      │
+├──────────┬───────┤  ├──────────────────┤  ├──────────────────┤
+│ /boot/efi│   /   │  │  /var/lib/rancher│  │  /var/lib/       │
+│  512 MB  │  max  │  │    (celý disk)   │  │  longhorn        │
+│  (vfat)  │(Btrfs)│  │      (XFS)       │  │  (celý disk)     │
+│          │       │  │                  │  │    (XFS)         │
+└──────────┴───────┘  └──────────────────┘  └──────────────────┘
+    Disk OS               Datový disk           Disk úložiště
+</code></pre>
+<h3 id="72-zduvodneni-vyberu-souboroveho-systemu">7.2 Zdůvodnění výběru souborového systému</h3>
+<table>
+<thead>
+<tr>
+<th>Přípojný bod</th>
+<th>Souborový systém</th>
+<th>Důvod</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>/</td>
+<td>Btrfs</td>
+<td>Podpora snapshotů transactional-update, copy-on-write, komprese</td>
+</tr>
+<tr>
+<td>/var/lib/rancher</td>
+<td>XFS</td>
+<td>Vysoký výkon pro zápisy kontejnerových vrstev, bez režie CoW</td>
+</tr>
+<tr>
+<td>/var/lib/longhorn</td>
+<td>XFS</td>
+<td>Backend blokového úložiště potřebuje konzistentní sekvenční zápisy</td>
+</tr>
+<tr>
+<td>/boot/efi</td>
+<td>vfat</td>
+<td>Vyžadováno specifikací UEFI</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-model-zabezpeceni">8. Model zabezpečení</h2>
+<h3 id="81-sprava-ssh-klicu">8.1 Správa SSH klíčů</h3>
+<p>Platforma poskytuje tři metody nasazení SSH klíčů:</p>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│                 Zdroje SSH klíčů                          │
+│                                                          │
+│  1. Manuální klíče (variables.yaml)                     │
+│     ssh.authorized_keys:                                 │
+│       - &quot;ssh-ed25519 AAAA... user@host&quot;                 │
+│                                                          │
+│  2. Import klíčů z GitHubu (staženo při nasazení)       │
+│     ssh.github_users:                                    │
+│       - &quot;username&quot;                                       │
+│     → curl https://github.com/username.keys             │
+│                                                          │
+│  3. Záložní lokální soubor klíče                        │
+│     ssh.key_path: &quot;~/.ssh/id_ed25519&quot;                   │
+│     → Čte ~/.ssh/id_ed25519.pub                         │
+└─────────────────────────────────────────────┬───────────┘
+                                              │
+                                              ▼
+                                    ┌──────────────────┐
+                                    │ Všechny klíče    │
+                                    │ sloučeny         │
+                                    │ Nasazeny do:     │
+                                    │ /root/.ssh/      │
+                                    │ authorized_keys  │
+                                    │ (všechny uzly)   │
+                                    └──────────────────┘
+</code></pre>
+<h3 id="82-zabezpeceni-ssh">8.2 Zabezpečení SSH</h3>
+<p>Pokud je nastaveno <code>ssh.disable_password_auth: true</code>:</p>
+<pre><code>/etc/ssh/sshd_config.d/10-k3s-hardening.conf:
+  PasswordAuthentication no
+  ChallengeResponseAuthentication no
+  PubkeyAuthentication yes
+  PermitRootLogin prohibit-password
+  MaxAuthTries 3
+  ClientAliveInterval 300
+  ClientAliveCountMax 2
+</code></pre>
+<h3 id="83-sitove-zabezpeceni-pravidla-firewallu">8.3 Síťové zabezpečení (pravidla firewallu)</h3>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Protokol</th>
+<th>Směr</th>
+<th>Účel</th>
+<th>Uzly</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6443</td>
+<td>TCP</td>
+<td>Příchozí</td>
+<td>API server K3s</td>
+<td>Mastery</td>
+</tr>
+<tr>
+<td>2379</td>
+<td>TCP</td>
+<td>Pouze mastery</td>
+<td>Klient etcd</td>
+<td>Mastery</td>
+</tr>
+<tr>
+<td>2380</td>
+<td>TCP</td>
+<td>Pouze mastery</td>
+<td>Peer etcd</td>
+<td>Mastery</td>
+</tr>
+<tr>
+<td>10250</td>
+<td>TCP</td>
+<td>Příchozí</td>
+<td>Metriky kubelet</td>
+<td>Všechny</td>
+</tr>
+<tr>
+<td>8472</td>
+<td>UDP</td>
+<td>Příchozí</td>
+<td>VXLAN (Flannel)</td>
+<td>Všechny</td>
+</tr>
+<tr>
+<td>51820</td>
+<td>UDP</td>
+<td>Příchozí</td>
+<td>WireGuard IPv4</td>
+<td>Všechny</td>
+</tr>
+<tr>
+<td>51821</td>
+<td>UDP</td>
+<td>Příchozí</td>
+<td>WireGuard IPv6</td>
+<td>Všechny</td>
+</tr>
+<tr>
+<td>8404</td>
+<td>TCP</td>
+<td>Příchozí</td>
+<td>Statistiky HAProxy</td>
+<td>Mastery</td>
+</tr>
+<tr>
+<td>30000-32767</td>
+<td>TCP/UDP</td>
+<td>Příchozí</td>
+<td>Rozsah NodePort</td>
+<td>Workery</td>
+</tr>
+<tr>
+<td>VRRP (112)</td>
+<td>IP</td>
+<td>Pouze mastery</td>
+<td>Keepalived</td>
+<td>Mastery</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-architektura-perzistentniho-uloziste">9. Architektura perzistentního úložiště</h2>
+<h3 id="91-datovy-tok-longhorn">9.1 Datový tok Longhorn</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│  Pod zapisuje data                                           │
+│  └──► /dev/longhorn/volume-xyz (blokové zařízení)           │
+│        └──► Longhorn Engine (iSCSI target, stejný uzel)     │
+│              └──► Synchronní replikace                       │
+│                    ├──► Replika 1 (worker-01:/var/lib/longhorn/replicas/vol-xyz/)
+│                    ├──► Replika 2 (worker-02:/var/lib/longhorn/replicas/vol-xyz/)
+│                    └──► Replika 3 (worker-03:/var/lib/longhorn/replicas/vol-xyz/)
+│                                                              │
+│  Všechny 3 repliky potvrdí ──► Zápis potvrzen podu          │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="92-konfigurace-storageclass">9.2 Konfigurace StorageClass</h3>
+<p><strong>StorageClass Longhorn</strong> (nasazená přes Helm):</p>
+<pre><code class="language-yaml">apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn
+  annotations:
+    storageclass.kubernetes.io/is-default-class: &quot;true&quot;
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: &quot;3&quot;
+  staleReplicaTimeout: &quot;2880&quot;
+</code></pre>
+<p><strong>StorageClass Local-Path</strong> (vestavěná v K3s):</p>
+<pre><code class="language-yaml">apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+  annotations:
+    storageclass.kubernetes.io/is-default-class: &quot;true&quot;
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+</code></pre>
+<hr />
+<h2 id="10-kontinualni-integrace-a-zajisteni-kvality">10. Kontinuální integrace a zajištění kvality</h2>
+<h3 id="101-ci-pipeline">10.1 CI pipeline</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│              GitHub Actions Workflow: lint.yaml               │
+│                                                              │
+│  Spouštěč: push do main, pull_request do main               │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ python-lint  │  │  yaml-lint   │  │ config-lint  │      │
+│  │              │  │              │  │              │      │
+│  │ ruff check . │  │  yamllint    │  │lint_configs.py│     │
+│  │ ruff format  │  │  variables   │  │  HAProxy     │      │
+│  │  --check .   │  │  configs/k3s │  │  Keepalived  │      │
+│  │              │  │  workflows   │  │  DHCP        │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│                                                              │
+│  ┌──────────────────────────┐  ┌──────────────────────┐     │
+│  │  generate-validate       │  │    shell-lint        │     │
+│  │                          │  │                      │     │
+│  │  python3 generate.py     │  │  shellcheck -x       │     │
+│  │    --dry-run             │  │    scripts/*.sh      │     │
+│  │  python3 generate.py     │  │                      │     │
+│  │  lint vygenerovaný výstup│  │                      │     │
+│  │  yamllint vygener. YAML  │  │                      │     │
+│  └──────────────────────────┘  └──────────────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="102-nastroje-pro-lint">10.2 Nástroje pro lint</h3>
+<table>
+<thead>
+<tr>
+<th>Nástroj</th>
+<th>Cíl</th>
+<th>Pravidla</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ruff</strong></td>
+<td>Python (.py)</td>
+<td>PEP8, isort, bugbear, comprehensions, pathlib, type-checking</td>
+</tr>
+<tr>
+<td><strong>yamllint</strong></td>
+<td>YAML (.yaml)</td>
+<td>Délka řádku 120, odsazení 2 mezerami, pravdivostní hodnoty</td>
+</tr>
+<tr>
+<td><strong>shellcheck</strong></td>
+<td>Shell (.sh)</td>
+<td>SC1091 zakázáno (dynamický source), všechna ostatní pravidla</td>
+</tr>
+<tr>
+<td><strong>lint_configs.py</strong></td>
+<td>.cfg, .conf</td>
+<td>Sekce HAProxy, syntaxe Keepalived, závorky/středníky DHCP</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-webovy-generator-konfigurace">11. Webový generátor konfigurace</h2>
+<h3 id="111-architektura">11.1 Architektura</h3>
+<p>Webové rozhraní je <strong>statická jednostránková aplikace</strong> nasazená na GitHub Pages. Běží výhradně v prohlížeči — žádné zpracování na straně serveru, žádný přenos dat.</p>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                Prohlížeč (pouze na straně klienta)            │
+│                                                              │
+│  ┌──────────┐    ┌──────────────┐    ┌──────────────────┐   │
+│  │HTML form. │──►│  Nunjucks    │──►│ Vygenerované soub.│   │
+│  │ (vstup    │    │  Šablonový   │    │  (náhled +        │   │
+│  │ uživatele)│    │  engine      │    │   stažení)        │   │
+│  └──────────┘    └──────────────┘    └────────┬──────────┘   │
+│                                               │              │
+│                                     ┌─────────▼──────────┐   │
+│                                     │      JSZip         │   │
+│                                     │ Generátor archivů  │   │
+│                                     └─────────┬──────────┘   │
+│                                               │              │
+│                                     ┌─────────▼──────────┐   │
+│                                     │    FileSaver.js    │   │
+│                                     │  Spouštěč stahování│   │
+│                                     └────────────────────┘   │
+│                                               │              │
+│                                               ▼              │
+│                                     k3s-config-v1.0.0-       │
+│                                     20260804-143052.zip      │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="112-technologicky-stack">11.2 Technologický stack</h3>
+<table>
+<thead>
+<tr>
+<th>Knihovna</th>
+<th>Verze</th>
+<th>Účel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nunjucks</td>
+<td>3.2.4</td>
+<td>Šablonový engine kompatibilní s Jinja2 (CDN)</td>
+</tr>
+<tr>
+<td>JSZip</td>
+<td>3.10.1</td>
+<td>Generování ZIP archivů v prohlížeči (CDN)</td>
+</tr>
+<tr>
+<td>FileSaver.js</td>
+<td>2.0.5</td>
+<td>Spouštění stahování souborů z Blob (CDN)</td>
+</tr>
+<tr>
+<td>Pure CSS</td>
+<td>-</td>
+<td>Vlastní tmavý motiv, responzivní layout</td>
+</tr>
+</tbody>
+</table>
+<h3 id="113-pojmenovani-zip-archivu">11.3 Pojmenování ZIP archivu</h3>
+<pre><code>k3s-config-v1.0.0-20260804-143052.zip
+│           │     │        │
+│           │     │        └── Čas: HHMMSS
+│           │     └── Datum: RRRRMMDD
+│           └── Verze aplikace
+└── Pevný prefix
+</code></pre>
+<hr />
+<h2 id="12-souhrn">12. Souhrn</h2>
+<p>Tato platforma pro vysoce dostupné nasazení K3s na baremetal poskytuje kompletní, produkčně připravené řešení pro nasazení Kubernetes na fyzických serverech. Klíčové vlastnosti:</p>
+<p><strong>Architektura</strong>:
+- 3-uzlový control plane s vestavěným etcd pro HA konsenzus
+- HAProxy + Keepalived pro rozložení zátěže API serveru a failover VIP
+- Toleruje selhání jednoho uzlu bez přerušení služby
+- Dual-stack síťování (IPv4 + IPv6) v celém řešení</p>
+<p><strong>Automatizace</strong>:
+- 7 sekvenčních skriptů pokrývajících celý životní cyklus nasazení
+- Generování konfigurace z jediného souboru proměnných (19+ výstupních souborů)
+- Webový generátor pro provoz pouze v prohlížeči (nevyžaduje server)
+- GitHub Actions CI pro kontinuální zajištění kvality</p>
+<p><strong>Úložiště</strong>:
+- Distribuované replikované úložiště Longhorn (produkční kvalita, snapshoty, zálohy)
+- Alternativa s provisionerem local-path (vývoj/jednoduché workloady)
+- 3 varianty rozložení disků pro různé hardwarové konfigurace</p>
+<p><strong>Zabezpečení</strong>:
+- Nasazení SSH klíčů s importem klíčů z GitHubu
+- Zabezpečení SSHD (autentizace heslem zakázána, přístup pouze klíčem)
+- Konfigurace firewallu s minimálním počtem otevřených portů
+- TLS certifikáty pokrývající všechny přístupové cesty (VIP + jednotlivé uzly)
+- Neměnný základ OS (transactional-update, kořenový oddíl jen pro čtení)</p>
+<p><strong>Flexibilita</strong>:
+- Volba mezi SLE Micro (komerční) nebo openSUSE MicroOS (komunitní)
+- Volba mezi Longhorn, local-path nebo žádným úložištěm
+- Volba mezi jedním kořenovým oddílem, více oddíly nebo více disky
+- Podpora DHCPv4/DHCPv6 s konfiguracemi ISC DHCP, dnsmasq a Kea
+- Konfigurovatelné přes YAML, webové UI nebo proměnné prostředí</p>
+<p><strong>Kvalita</strong>:
+- Veškerý kód lintovaný (Python, YAML, Shell, konfigurační soubory)
+- Validace šablon při každém commitu
+- Vygenerovaný výstup ověřen CI pipeline
+- Komplexní dokumentace (7 průvodců + tento referenční dokument)</p>
+<hr />
+<p><em>Tento dokument popisuje verzi 1.0.0 platformy pro vysoce dostupné nasazení K3s na baremetal. Nejnovější aktualizace naleznete v <a href="https://github.com/opentreecz/k3s">repozitáři</a>.</em></p>
+</body>
+</html>

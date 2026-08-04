@@ -1,0 +1,1427 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="de" lang="de">
+<head>
+  <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />
+  <title>K3s Hochverfügbare Baremetal-Bereitstellungsplattform — Technische Referenz</title>
+  <style type="text/css">
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2em; color: #24292e; }
+    h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; margin-bottom: 0.5em; }
+    h1 { border-bottom: 2px solid #e1e4e8; padding-bottom: 0.3em; }
+    h2 { border-bottom: 1px solid #e1e4e8; padding-bottom: 0.3em; }
+    pre { background-color: #f6f8fa; border: 1px solid #e1e4e8; border-radius: 6px; padding: 1em; overflow-x: auto; font-size: 0.9em; }
+    code { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9em; }
+    p > code, li > code, td > code { background-color: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; }
+    table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    th, td { border: 1px solid #e1e4e8; padding: 0.5em 1em; text-align: left; }
+    th { background-color: #f6f8fa; font-weight: 600; }
+    hr { border: none; border-top: 1px solid #e1e4e8; margin: 2em 0; }
+    a { color: #0366d6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { font-weight: 600; }
+    ul, ol { padding-left: 2em; }
+    blockquote { border-left: 4px solid #dfe2e5; padding: 0 1em; color: #6a737d; margin: 1em 0; }
+  </style>
+</head>
+<body>
+<h1 id="k3s-hochverfugbare-baremetal-bereitstellungsplattform">K3s Hochverfügbare Baremetal-Bereitstellungsplattform</h1>
+<h2 id="technisches-referenzdokument">Technisches Referenzdokument</h2>
+<p><strong>Version:</strong> 1.0.0<br />
+<strong>Zuletzt aktualisiert:</strong> August 2026<br />
+<strong>Repository:</strong> <a href="https://github.com/opentreecz/k3s">github.com/opentreecz/k3s</a><br />
+<strong>Web-Generator:</strong> <a href="https://opentreecz.github.io/k3s/">opentreecz.github.io/k3s</a></p>
+<hr />
+<h2 id="inhaltsverzeichnis">Inhaltsverzeichnis</h2>
+<ol>
+<li><a href="#1-zusammenfassung">Zusammenfassung</a></li>
+<li><a href="#2-projektübersicht">Projektübersicht</a></li>
+<li><a href="#3-architektur">Architektur</a></li>
+<li><a href="#4-detaillierte-komponentenanalyse">Detaillierte Komponentenanalyse</a></li>
+<li><a href="#41-betriebssystemschicht">4.1 Betriebssystemschicht</a></li>
+<li><a href="#42-k3s-kubernetes-distribution">4.2 K3s Kubernetes-Distribution</a></li>
+<li><a href="#43-haproxy-load-balancer">4.3 HAProxy Load Balancer</a></li>
+<li><a href="#44-keepalived-und-virtuelle-ip">4.4 Keepalived und virtuelle IP</a></li>
+<li><a href="#45-verteilter-longhorn-speicher">4.5 Verteilter Longhorn-Speicher</a></li>
+<li><a href="#46-netzwerkarchitektur-dhcpv4dhcpv6">4.6 Netzwerkarchitektur (DHCPv4/DHCPv6)</a></li>
+<li><a href="#5-bereitstellungsablauf">Bereitstellungsablauf</a></li>
+<li><a href="#6-konfigurationserzeugungssystem">Konfigurationserzeugungssystem</a></li>
+<li><a href="#7-festplattenpartitionierungsstrategie">Festplattenpartitionierungsstrategie</a></li>
+<li><a href="#8-sicherheitsmodell">Sicherheitsmodell</a></li>
+<li><a href="#9-architektur-für-persistenten-speicher">Architektur für persistenten Speicher</a></li>
+<li><a href="#10-kontinuierliche-integration-und-qualitätssicherung">Kontinuierliche Integration und Qualitätssicherung</a></li>
+<li><a href="#11-webbasierter-konfigurationsgenerator">Webbasierter Konfigurationsgenerator</a></li>
+<li><a href="#12-zusammenfassung">Zusammenfassung</a></li>
+</ol>
+<hr />
+<h2 id="1-zusammenfassung">1. Zusammenfassung</h2>
+<p>Dieses Projekt stellt eine vollständige, automatisierte Bereitstellungsplattform zur Einrichtung eines <strong>hochverfügbaren K3s-Kubernetes-Clusters</strong> auf Baremetal-Servern bereit. Die Plattform zielt auf Umgebungen ab, die <strong>SUSE Linux Enterprise Micro (SLE Micro)</strong> oder <strong>openSUSE MicroOS</strong> verwenden — unveränderliche, containeroptimierte Betriebssysteme, die speziell für Edge- und Kubernetes-Workloads entwickelt wurden.</p>
+<p>Die Bereitstellungsplattform deckt den gesamten Lebenszyklus der Cluster-Provisionierung ab:</p>
+<ul>
+<li>Installation und Konfiguration des Betriebssystems</li>
+<li>Netzwerkplanung mit DHCPv4/DHCPv6-Verwaltung statischer Leases</li>
+<li>API-Server-Hochverfügbarkeit über HAProxy und Keepalived</li>
+<li>Automatisierter K3s-Cluster-Bootstrap mit eingebettetem etcd</li>
+<li>Aufnahme von Worker-Knoten</li>
+<li>Bereitstellung von persistentem Speicher (Longhorn oder local-path)</li>
+<li>SSH-Schlüsselverwaltung mit GitHub-Schlüsselimport</li>
+</ul>
+<p>Die gesamte Konfiguration wird durch eine <strong>einzelne Variablendatei</strong> gesteuert und über <strong>Jinja2-Templates</strong> gerendert, was Konsistenz, Wiederholbarkeit und Nachvollziehbarkeit über alle Umgebungen hinweg gewährleistet.</p>
+<hr />
+<h2 id="2-projektubersicht">2. Projektübersicht</h2>
+<h3 id="21-problemstellung">2.1 Problemstellung</h3>
+<p>Die Bereitstellung eines produktionsreifen Kubernetes-Clusters auf Baremetal-Servern stellt mehrere Herausforderungen dar, die verwaltete Cloud-Umgebungen abstrahieren:</p>
+<ul>
+<li>Keine automatisierte Infrastrukturbereitstellung (kein Terraform/Cloud-APIs)</li>
+<li>Kein integrierter Load Balancer für den API-Server</li>
+<li>Kein verwaltetes Speicher-Backend</li>
+<li>Netzwerkadressierung muss geplant und mit bestehender DHCP-Infrastruktur koordiniert werden</li>
+<li>Installation und Härtung des Betriebssystems sind manuell</li>
+<li>Zertifikatsverwaltung erfordert sorgfältige IP-/Hostname-Planung</li>
+</ul>
+<h3 id="22-losungsarchitektur">2.2 Lösungsarchitektur</h3>
+<p>Diese Plattform löst diese Herausforderungen durch einen schichtbasierten Ansatz:</p>
+<pre><code>┌─────────────────────────────────────────────────────────────────────┐
+│                    Konfigurationserzeugungsschicht                    │
+│                                                                       │
+│   variables.yaml ──► Jinja2-Templates ──► Erzeugte Konfigurationen   │
+│   (einzige Quelle)   (18 Templates)       (19+ Ausgabedateien)       │
+│                                                                       │
+│   Web-UI (GitHub Pages) ──► Browserseitiges Nunjucks ──► ZIP-Archiv  │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Bereitstellungsautomatisierungsschicht             │
+│                                                                       │
+│   00-validate-environment.sh    Vorabprüfungen                       │
+│   01-configure-os.sh            OS-Härtung, SSH-Schlüssel, sysctl    │
+│   02-install-haproxy.sh         HAProxy + Keepalived auf Mastern     │
+│   03-install-k3s-first.sh       Bootstrap erster Server (cluster-init)│
+│   04-install-k3s-servers.sh     Weitere Server-Knoten beitreten      │
+│   05-install-k3s-agents.sh      Worker-Knoten beitreten              │
+│   06-install-storage.sh         Longhorn- oder local-path-Bereitst.  │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       Infrastrukturschicht                            │
+│                                                                       │
+│   ┌──────────┐  ┌──────────┐  ┌──────────┐                          │
+│   │master-01 │  │master-02 │  │master-03 │  Control Plane (3 Knoten)│
+│   │HAProxy   │  │HAProxy   │  │HAProxy   │                          │
+│   │Keepalived│  │Keepalived│  │Keepalived│                          │
+│   │K3s Server│  │K3s Server│  │K3s Server│                          │
+│   │etcd      │  │etcd      │  │etcd      │                          │
+│   └──────────┘  └──────────┘  └──────────┘                          │
+│         │              │              │                               │
+│         └──────────────┼──────────────┘                              │
+│                        │ VIP: 192.168.1.100                          │
+│                        │                                             │
+│   ┌──────────┐  ┌──────────┐  ┌──────────┐                          │
+│   │worker-01 │  │worker-02 │  │worker-03 │  Datenebene (N Knoten)   │
+│   │K3s Agent │  │K3s Agent │  │K3s Agent │                          │
+│   │Longhorn  │  │Longhorn  │  │Longhorn  │                          │
+│   └──────────┘  └──────────┘  └──────────┘                          │
+└─────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="23-repository-struktur">2.3 Repository-Struktur</h3>
+<pre><code>k3s/
+├── variables.yaml                  # Einzige Wahrheitsquelle
+├── generate.py                     # Python-Template-Renderer
+├── lint_configs.py                 # Benutzerdefinierter Konfigurationslinter
+├── requirements.txt                # Python-Abhängigkeiten
+├── pyproject.toml                  # Ruff-Linter-Konfiguration
+├── .yamllint.yaml                  # YAML-Lint-Regeln
+├── .shellcheckrc                   # Shell-Lint-Konfiguration
+├── .github/workflows/
+│   ├── lint.yaml                   # CI: Alle Dateitypen linten
+│   └── pages.yaml                  # CI: Web-UI auf GitHub Pages bereitstellen
+├── docs/                           # Schritt-für-Schritt-Dokumentation
+├── templates/jinja2/               # 18 Jinja2-Konfigurationstemplates
+├── configs/                        # Statische Referenzkonfigurationen
+├── scripts/                        # 7 Bereitstellungsautomatisierungsskripte
+├── web/                            # Browserbasierter Konfigurationsgenerator
+└── generated/                      # Ausgabeverzeichnis (gitignored)
+</code></pre>
+<hr />
+<h2 id="3-architektur">3. Architektur</h2>
+<h3 id="31-hochverfugbarkeitstopologie">3.1 Hochverfügbarkeitstopologie</h3>
+<p>Der Cluster verwendet eine <strong>3-Knoten-Control-Plane</strong> mit <strong>eingebettetem etcd</strong> für den Konsens, vorgeschaltet mit <strong>HAProxy</strong> für das API-Load-Balancing und <strong>Keepalived</strong> für das Virtual-IP-(VIP-)Failover.</p>
+<pre><code>                    ┌─────────────────────────────┐
+                    │         Clients              │
+                    │   (kubectl, CI/CD, Apps)     │
+                    └──────────────┬───────────────┘
+                                   │
+                                   ▼
+                    ┌─────────────────────────────┐
+                    │     Virtuelle IP (VIP)       │
+                    │    192.168.1.100:6443        │
+                    │    fd00::100:6443            │
+                    │  (verwaltet durch Keepalived)│
+                    └──────────────┬───────────────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+              ▼                    ▼                    ▼
+    ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+    │   HAProxy       │  │   HAProxy       │  │   HAProxy       │
+    │   (Frontend)    │  │   (Frontend)    │  │   (Frontend)    │
+    │   master-01     │  │   master-02     │  │   master-03     │
+    │                 │  │                 │  │                 │
+    │   K3s Server    │  │   K3s Server    │  │   K3s Server    │
+    │   API Server    │  │   API Server    │  │   API Server    │
+    │   Controller    │  │   Controller    │  │   Controller    │
+    │   Scheduler     │  │   Scheduler     │  │   Scheduler     │
+    │                 │  │                 │  │                 │
+    │   etcd          │  │   etcd          │  │   etcd          │
+    │  (eingebettet)  │  │  (eingebettet)  │  │  (eingebettet)  │
+    └─────────────────┘  └─────────────────┘  └─────────────────┘
+              │                    │                    │
+              │         etcd-Peer-Replikation           │
+              └────────────────────┼────────────────────┘
+                                   │
+                                   ▼
+    ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+    │   K3s Agent     │  │   K3s Agent     │  │   K3s Agent     │
+    │   kubelet       │  │   kubelet       │  │   kubelet       │
+    │   kube-proxy    │  │   kube-proxy    │  │   kube-proxy    │
+    │   Longhorn      │  │   Longhorn      │  │   Longhorn      │
+    │                 │  │                 │  │                 │
+    │   worker-01     │  │   worker-02     │  │   worker-03     │
+    └─────────────────┘  └─────────────────┘  └─────────────────┘
+</code></pre>
+<h3 id="32-ausfalldomanen">3.2 Ausfalldomänen</h3>
+<p>Die Architektur toleriert folgende Ausfälle ohne Dienstunterbrechung:</p>
+<table>
+<thead>
+<tr>
+<th>Ausfallszenario</th>
+<th>Auswirkung</th>
+<th>Wiederherstellung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 Master-Knoten ausgefallen</td>
+<td>Keine Auswirkung (2/3 etcd-Quorum erhalten)</td>
+<td>Automatisches VIP-Failover</td>
+</tr>
+<tr>
+<td>1 Worker-Knoten ausgefallen</td>
+<td>Pods werden auf verbleibende Worker umgeplant</td>
+<td>Automatisch durch Kubernetes</td>
+</tr>
+<tr>
+<td>HAProxy auf 1 Master</td>
+<td>VIP wechselt zu gesundem HAProxy-Knoten</td>
+<td>Keepalived-Failover (&lt;3s)</td>
+</tr>
+<tr>
+<td>Netzwerkpartition (1 Master isoliert)</td>
+<td>Quorum durch Mehrheit erhalten</td>
+<td>Automatische Abstimmung</td>
+</tr>
+<tr>
+<td>2 Master-Knoten ausgefallen</td>
+<td><strong>Cluster nicht verfügbar</strong> (Quorum verloren)</td>
+<td>Manueller Eingriff erforderlich</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-netzwerkfluss">3.3 Netzwerkfluss</h3>
+<pre><code>kubectl ──► VIP:6443 ──► HAProxy ──► K3s API Server (einer von 3 Mastern)
+                              │
+                              ├──► master-01:6443 (Prüfung: TCP-Health)
+                              ├──► master-02:6443 (Prüfung: TCP-Health)
+                              └──► master-03:6443 (Prüfung: TCP-Health)
+
+Worker Agent ──► VIP:6443 ──► HAProxy ──► K3s API Server
+                                              │
+                                              ▼
+                                     Knoten registrieren
+                                     Pod-Spezifikationen empfangen
+                                     Status melden
+</code></pre>
+<hr />
+<h2 id="4-detaillierte-komponentenanalyse">4. Detaillierte Komponentenanalyse</h2>
+<h3 id="41-betriebssystemschicht">4.1 Betriebssystemschicht</h3>
+<h4 id="suse-linux-enterprise-micro-sle-micro">SUSE Linux Enterprise Micro (SLE Micro)</h4>
+<p><strong>SLE Micro</strong> ist SUSEs kommerziell unterstütztes, unveränderliches Betriebssystem, das speziell für containerisierte und virtualisierte Workloads entwickelt wurde. Wesentliche Eigenschaften:</p>
+<ul>
+<li><strong>Unveränderliches Root-Dateisystem</strong>: Die Root-Partition ist schreibgeschützt. Änderungen werden über <code>transactional-update</code> angewendet, das einen neuen Btrfs-Snapshot erstellt. Das System startet beim nächsten Neustart in den neuen Snapshot, was atomare Upgrades mit sofortiger Rollback-Fähigkeit ermöglicht.</li>
+<li><strong>Minimale Angriffsfläche</strong>: Wird nur mit wesentlichen Paketen ausgeliefert. Keine Desktopumgebung, keine unnötigen Daemons.</li>
+<li><strong>SELinux/AppArmor</strong>: Mandatory Access Control standardmäßig aktiviert.</li>
+<li><strong>Kommerzieller Lebenszyklus</strong>: 4+ Jahre Wartung und Sicherheitsupdates pro Hauptversion.</li>
+<li><strong>Zertifizierung</strong>: FIPS 140-2, Common-Criteria-zertifizierte Varianten verfügbar.</li>
+</ul>
+<h4 id="opensuse-microos">openSUSE MicroOS</h4>
+<p><strong>openSUSE MicroOS</strong> ist die communitygetriebene Upstream-Version von SLE Micro mit derselben Architektur:</p>
+<ul>
+<li><strong>Rolling Release</strong>: Kontinuierliche Updates (Tumbleweed-basiert).</li>
+<li><strong>Identischer transactional-update-Mechanismus</strong>: Dasselbe atomare Upgrade-System.</li>
+<li><strong>Keine Registrierung erforderlich</strong>: Frei verfügbar, Community-unterstützt.</li>
+<li><strong>Ideal für</strong>: Entwicklungscluster, Proof-of-Concept, Community-Produktionsumgebungen.</li>
+</ul>
+<h4 id="transactional-update-mechanismus">Transactional-Update-Mechanismus</h4>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                    Btrfs-Root-Dateisystem                      │
+│                                                              │
+│  Snapshot #1 (aktuell, schreibgeschützt)                    │
+│  └── / (laufendes System)                                   │
+│                                                              │
+│  Snapshot #2 (erstellt durch transactional-update)           │
+│  └── / (modifiziertes System: neue Pakete, Konfig.-Änder.)  │
+│                                                              │
+│  transactional-update reboot ──► Start in Snapshot #2       │
+│                                                              │
+│  Falls Snapshot #2 fehlschlägt:                              │
+│  └── Rollback auf Snapshot #1 (sofort, kein Datenverlust)   │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<p>Das Werkzeug <code>transactional-update</code> ist der exklusive Mechanismus zur Modifikation des Betriebssystems:</p>
+<pre><code class="language-bash"># Pakete installieren (wirksam nach Neustart)
+transactional-update pkg install open-iscsi nfs-client
+
+# Alle ausstehenden Updates anwenden
+transactional-update up
+
+# In den neuen Snapshot neustarten
+transactional-update reboot
+</code></pre>
+<h3 id="42-k3s-kubernetes-distribution">4.2 K3s Kubernetes-Distribution</h3>
+<h4 id="was-ist-k3s">Was ist K3s?</h4>
+<p><strong>K3s</strong> ist eine zertifizierte, produktionsreife Kubernetes-Distribution, die von SUSE/Rancher entwickelt wird. Sie verpackt die gesamte Kubernetes-Control-Plane in eine einzige Binärdatei (~60 MB) und eignet sich damit für ressourcenbeschränkte Umgebungen, Edge-Computing und Baremetal-Bereitstellungen, bei denen der betriebliche Aufwand von kubeadm-basierten Clustern unerwünscht ist.</p>
+<h4 id="k3s-vs-upstream-kubernetes">K3s vs. Upstream-Kubernetes</h4>
+<table>
+<thead>
+<tr>
+<th>Merkmal</th>
+<th>K3s</th>
+<th>Upstream (kubeadm)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Binärgröße</td>
+<td>~60 MB</td>
+<td>~300+ MB (mehrere Binärdateien)</td>
+</tr>
+<tr>
+<td>Speicherbedarf</td>
+<td>~512 MB (Server)</td>
+<td>~1–2 GB (Server)</td>
+</tr>
+<tr>
+<td>Installation</td>
+<td>Einzelner curl-Befehl</td>
+<td>Mehrstufig, Zertifikatsverwaltung</td>
+</tr>
+<tr>
+<td>etcd</td>
+<td>Eingebettet (oder extern)</td>
+<td>Muss separat bereitgestellt werden</td>
+</tr>
+<tr>
+<td>Container-Runtime</td>
+<td>containerd (integriert)</td>
+<td>Muss separat installiert werden</td>
+</tr>
+<tr>
+<td>Netzwerk</td>
+<td>Flannel (integriert)</td>
+<td>CNI-Plugin muss installiert werden</td>
+</tr>
+<tr>
+<td>Zertifikatsverwaltung</td>
+<td>Automatische Rotation</td>
+<td>Manuelle Konfiguration</td>
+</tr>
+<tr>
+<td>Upgrade</td>
+<td>Binärdatei ersetzen + Neustart</td>
+<td>Rollierendes Upgrade-Verfahren</td>
+</tr>
+</tbody>
+</table>
+<h4 id="k3s-server-architektur-control-plane">K3s-Server-Architektur (Control Plane)</h4>
+<p>Jeder K3s-Server-Knoten führt aus:</p>
+<pre><code>┌──────────────────────────────────────────────────────┐
+│                    K3s-Server-Prozess                   │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │ API Server  │  │ Controller  │  │  Scheduler  │  │
+│  │             │  │  Manager    │  │             │  │
+│  └──────┬──────┘  └─────────────┘  └─────────────┘  │
+│         │                                            │
+│  ┌──────▼──────┐  ┌─────────────┐                   │
+│  │   etcd      │  │ containerd  │                   │
+│  │ (eingebettet)│  │             │                   │
+│  └─────────────┘  └─────────────┘                   │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────┐                   │
+│  │  Flannel    │  │ CoreDNS     │                   │
+│  │  (CNI)      │  │             │                   │
+│  └─────────────┘  └─────────────┘                   │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="k3s-agent-architektur-worker">K3s-Agent-Architektur (Worker)</h4>
+<p>Jeder K3s-Agent-Knoten führt aus:</p>
+<pre><code>┌──────────────────────────────────────────────────────┐
+│                    K3s-Agent-Prozess                    │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │  kubelet    │  │ kube-proxy  │  │ containerd  │  │
+│  │             │  │             │  │             │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+│                                                       │
+│  ┌─────────────┐  ┌─────────────────────────────┐   │
+│  │  Flannel    │  │  Workload-Pods              │   │
+│  │  (CNI)      │  │  (Benutzeranwendungen)      │   │
+│  └─────────────┘  └─────────────────────────────┘   │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="eingebetteter-etcd-cluster">Eingebetteter etcd-Cluster</h4>
+<p>K3s verwendet einen eingebetteten etcd-Cluster zur Speicherung des gesamten Cluster-Zustands. Mit 3 Server-Knoten arbeitet der etcd-Cluster mit dem Raft-Konsensalgorithmus:</p>
+<ul>
+<li><strong>Quorum</strong>: 2 von 3 Knoten müssen Schreibvorgängen zustimmen (Mehrheit)</li>
+<li><strong>Leader-Wahl</strong>: Ein Knoten ist der Leader; die anderen sind Follower</li>
+<li><strong>Datenreplikation</strong>: Alle Daten werden auf alle 3 Knoten repliziert</li>
+<li><strong>Ausfalltoleranz</strong>: Übersteht 1 Knotenausfall ohne Datenverlust</li>
+</ul>
+<pre><code>         ┌─────────────┐
+         │   etcd      │
+         │  (Leader)   │
+         │  master-01  │
+         └──────┬──────┘
+                │
+       ┌────────┴────────┐
+       │  Raft-Konsens   │
+       │  Replikation    │
+       ▼                 ▼
+┌─────────────┐   ┌─────────────┐
+│   etcd      │   │   etcd      │
+│ (Follower)  │   │ (Follower)  │
+│  master-02  │   │  master-03  │
+└─────────────┘   └─────────────┘
+</code></pre>
+<h4 id="k3s-cluster-bootstrap-sequenz">K3s-Cluster-Bootstrap-Sequenz</h4>
+<p>Die Cluster-Initialisierung folgt einer präzisen Reihenfolge:</p>
+<ol>
+<li><strong>Erster Server</strong> startet mit <code>--cluster-init</code> und erstellt einen Einzelknoten-etcd-Cluster</li>
+<li><strong>Zweiter Server</strong> tritt über <code>--server https://&lt;erster&gt;:6443</code> bei und wird ein etcd-Follower</li>
+<li><strong>Dritter Server</strong> tritt ähnlich bei und vervollständigt das 3-Knoten-etcd-Quorum</li>
+<li><strong>Agents</strong> treten über die VIP (<code>https://&lt;VIP&gt;:6443</code>) für Hochverfügbarkeit bei</li>
+</ol>
+<pre><code>Zeit ──────────────────────────────────────────────────────────────►
+
+master-01: [cluster-init] ──► [etcd Leader, 1/1] ──► [etcd Leader, 1/3]
+                                                              │
+master-02:                    [Beitritt] ──► [etcd Follower, 2/3] ─┤
+                                                              │
+master-03:                              [Beitritt] ──► [Follower, 3/3]
+                                                              │
+                                              Quorum erreicht ─┘
+                                                              │
+worker-01:                                         [Beitritt über VIP]
+worker-02:                                         [Beitritt über VIP]
+worker-03:                                         [Beitritt über VIP]
+</code></pre>
+<h4 id="tls-zertifikatsarchitektur">TLS-Zertifikatsarchitektur</h4>
+<p>K3s erzeugt und verwaltet TLS-Zertifikate automatisch. Die <code>--tls-san</code>-Flags stellen sicher, dass Zertifikate für alle Zugriffspfade gültig sind:</p>
+<pre><code>Subject Alternative Names des Zertifikats:
+├── 192.168.1.100        (VIP IPv4)
+├── fd00::100            (VIP IPv6)
+├── k3s-api.k3s.local    (VIP-Hostname)
+├── master-01.k3s.local  (Knoten-FQDN)
+├── master-01            (Kurzname)
+├── 192.168.1.101        (Knoten-IP)
+├── master-02.k3s.local
+├── master-02
+├── 192.168.1.102
+├── master-03.k3s.local
+├── master-03
+└── 192.168.1.103
+</code></pre>
+<p>Dies stellt sicher, dass <code>kubectl</code> sich verbinden kann über:
+- Die VIP (Normalbetrieb)
+- Jede einzelne Master-IP (Debugging/Notfall)
+- Jede Hostname-Variante</p>
+<h3 id="43-haproxy-load-balancer">4.3 HAProxy Load Balancer</h3>
+<h4 id="zweck">Zweck</h4>
+<p>HAProxy dient als <strong>Layer-4-(TCP-)Load-Balancer</strong> für den K3s-API-Server. Er verteilt eingehende Verbindungen auf Port 6443 auf alle drei Master-Knoten und bietet:</p>
+<ul>
+<li><strong>Lastverteilung</strong>: Round-Robin-Balancing über gesunde Backends</li>
+<li><strong>Gesundheitsprüfung</strong>: TCP-Level-Health-Probes alle 10 Sekunden</li>
+<li><strong>Automatisches Failover</strong>: Entfernt ungesunde Backends innerhalb von 2 fehlgeschlagenen Prüfungen aus dem Pool</li>
+<li><strong>Verbindungspersistenz</strong>: Erhält bestehende Verbindungen während Backend-Übergängen</li>
+</ul>
+<h4 id="haproxy-konfigurationsarchitektur">HAProxy-Konfigurationsarchitektur</h4>
+<pre><code>┌──────────────────────────────────────────────────────┐
+│                   HAProxy-Prozess                      │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │              Frontend: k3s_api_frontend          │ │
+│  │              bind *:6443 (TCP-Modus)            │ │
+│  └──────────────────────┬──────────────────────────┘ │
+│                          │                            │
+│  ┌──────────────────────▼──────────────────────────┐ │
+│  │              Backend: k3s_api_backend            │ │
+│  │              balance: roundrobin                 │ │
+│  │                                                  │ │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │ │
+│  │  │master-01 │  │master-02 │  │master-03 │      │ │
+│  │  │:6443     │  │:6443     │  │:6443     │      │ │
+│  │  │ Prüf. ✓  │  │ Prüf. ✓  │  │ Prüf. ✓  │      │ │
+│  │  └──────────┘  └──────────┘  └──────────┘      │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │              Listen: stats                       │ │
+│  │              bind *:8404 (HTTP-Modus)           │ │
+│  │              /stats Dashboard                    │ │
+│  └─────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="gesundheitsprufungsparameter">Gesundheitsprüfungsparameter</h4>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Wert</th>
+<th>Beschreibung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inter</code></td>
+<td>10s</td>
+<td>Prüfintervall wenn Server AKTIV</td>
+</tr>
+<tr>
+<td><code>downinter</code></td>
+<td>5s</td>
+<td>Prüfintervall wenn Server INAKTIV</td>
+</tr>
+<tr>
+<td><code>rise</code></td>
+<td>2</td>
+<td>Aufeinanderfolgende erfolgreiche Prüfungen für Status AKTIV</td>
+</tr>
+<tr>
+<td><code>fall</code></td>
+<td>2</td>
+<td>Aufeinanderfolgende fehlgeschlagene Prüfungen für Status INAKTIV</td>
+</tr>
+<tr>
+<td><code>slowstart</code></td>
+<td>60s</td>
+<td>Schrittweise Verkehrserhöhung nach Wiederherstellung</td>
+</tr>
+<tr>
+<td><code>maxconn</code></td>
+<td>250</td>
+<td>Max. gleichzeitige Verbindungen pro Backend</td>
+</tr>
+</tbody>
+</table>
+<h4 id="warum-tcp-modus-layer-4">Warum TCP-Modus (Layer 4)?</h4>
+<p>HAProxy arbeitet im TCP-Modus (nicht HTTP), weil:</p>
+<ol>
+<li>Die K3s-API <strong>Mutual TLS</strong> (mTLS) verwendet — HAProxy kann die Verbindung nicht terminieren</li>
+<li>Der TCP-Modus <strong>geringeren Overhead</strong> hat (kein HTTP-Parsing)</li>
+<li>Das API-Protokoll <strong>HTTP/2</strong> mit Streaming (Watches) ist — der TCP-Modus verarbeitet dies nativ</li>
+<li>Gesundheitsprüfungen <strong>TCP-Connect</strong> verwenden (Port 6443 reagiert = gesund)</li>
+</ol>
+<h3 id="44-keepalived-und-virtuelle-ip">4.4 Keepalived und virtuelle IP</h3>
+<h4 id="zweck_1">Zweck</h4>
+<p>Keepalived implementiert das <strong>Virtual Router Redundancy Protocol (VRRP)</strong> zur Verwaltung einer schwebenden virtuellen IP-Adresse (VIP) über die drei Master-Knoten. Diese VIP ist der einzige Einstiegspunkt für alle API-Zugriffe.</p>
+<h4 id="vrrp-betrieb">VRRP-Betrieb</h4>
+<pre><code>Normalbetrieb:                        Nach Ausfall von master-01:
+
+  master-01 (MASTER, Priorität 101)     master-01 (AUSGEFALLEN)
+  ├── VIP: 192.168.1.100 ✓             ├── VIP: (freigegeben)
+  ├── Sendet VRRP-Advertisements       │
+  │                                     │
+  master-02 (BACKUP, Priorität 100)     master-02 (MASTER, Priorität 100)
+  ├── VIP: (Standby)                   ├── VIP: 192.168.1.100 ✓
+  ├── Horcht auf Advertisements        ├── Sendet VRRP-Advertisements
+  │                                     │
+  master-03 (BACKUP, Priorität 99)      master-03 (BACKUP, Priorität 99)
+  ├── VIP: (Standby)                   ├── VIP: (Standby)
+  ├── Horcht auf Advertisements        ├── Horcht auf Advertisements
+</code></pre>
+<h4 id="failover-sequenz">Failover-Sequenz</h4>
+<ol>
+<li>Master-01 (MASTER) sendet VRRP-Advertisements jede Sekunde</li>
+<li>Master-02 und master-03 (BACKUP) horchen auf diese Advertisements</li>
+<li>Wenn Advertisements 3 Sekunden lang ausbleiben (fall × Intervall):</li>
+<li>Der BACKUP mit der höchsten Priorität (master-02, Priorität 100) wechselt zu MASTER</li>
+<li>Er sendet ein Gratuitous ARP, das die VIP auf seiner MAC-Adresse ankündigt</li>
+<li>Alle Netzwerk-Switches aktualisieren ihre MAC-Tabellen</li>
+<li>Der Datenverkehr fließt sofort zu master-02</li>
+<li>Wenn master-01 sich erholt:</li>
+<li>Mit Preemption aktiviert: master-01 übernimmt MASTER zurück (höhere Priorität)</li>
+<li>Ohne Preemption: master-02 behält MASTER, bis er ausfällt</li>
+</ol>
+<h4 id="gesundheitsuberwachungsskript">Gesundheitsüberwachungsskript</h4>
+<p>Keepalived verwendet ein Gesundheitsprüfungsskript, um den VIP-Besitz an die HAProxy-Gesundheit zu koppeln:</p>
+<pre><code class="language-bash">vrrp_script check_haproxy {
+    script &quot;/usr/bin/killall -0 haproxy&quot;   # Signal 0 = prüfen ob Prozess existiert
+    interval 2                              # Alle 2 Sekunden prüfen
+    weight 2                                # 2 zur Priorität addieren wenn gesund
+    fall 3                                  # 3 Fehlschläge für Status INAKTIV
+    rise 2                                  # 2 Erfolge für Status AKTIV
+}
+</code></pre>
+<p>Dies stellt sicher, dass die VIP nur auf einem Knoten liegt, auf dem HAProxy tatsächlich läuft und Verbindungen akzeptiert.</p>
+<h4 id="dual-stack-vip-ipv4-ipv6">Dual-Stack-VIP (IPv4 + IPv6)</h4>
+<p>Die VIP-Konfiguration umfasst sowohl IPv4- als auch IPv6-Adressen:</p>
+<pre><code>virtual_ipaddress {
+    192.168.1.100/24 dev eth0    # IPv4-VIP
+    fd00::100/64 dev eth0        # IPv6-VIP
+}
+</code></pre>
+<p>Beide Adressen wechseln gemeinsam über, wodurch die Dual-Stack-API-Erreichbarkeit erhalten bleibt.</p>
+<h3 id="45-verteilter-longhorn-speicher">4.5 Verteilter Longhorn-Speicher</h3>
+<h4 id="was-ist-longhorn">Was ist Longhorn?</h4>
+<p><strong>Longhorn</strong> ist ein quelloffenes, cloudnatives verteiltes Blockspeichersystem, das von SUSE/Rancher für Kubernetes entwickelt wurde. Es bietet:</p>
+<ul>
+<li><strong>Replizierten Blockspeicher</strong>: Jedes Volume wird über mehrere Knoten repliziert</li>
+<li><strong>Snapshots und Backups</strong>: Zeitpunktbezogene Snapshots mit S3-/NFS-Backup-Zielen</li>
+<li><strong>Disaster Recovery</strong>: Clusterübergreifende Replikation für DR-Szenarien</li>
+<li><strong>Selbstheilung</strong>: Automatischer Replica-Neuaufbau bei Knotenausfall</li>
+<li><strong>Thin Provisioning</strong>: Speicher wird bei Bedarf zugewiesen, nicht im Voraus</li>
+<li><strong>Web-UI</strong>: Visuelles Dashboard für Volume-Verwaltung</li>
+</ul>
+<h4 id="longhorn-architektur">Longhorn-Architektur</h4>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│                    Kubernetes-Cluster                              │
+│                                                                   │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │              Longhorn Manager (DaemonSet)                  │   │
+│  │              Läuft auf allen Knoten                        │   │
+│  │              Orchestriert Volumes, Replicas, Engines       │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                   │
+│  ┌──────────────────┐  ┌──────────────────┐                     │
+│  │  Longhorn CSI    │  │  Longhorn UI     │                     │
+│  │  Treiber         │  │  (Deployment)    │                     │
+│  │  (DaemonSet)     │  │  Dashboard       │                     │
+│  └──────────────────┘  └──────────────────┘                     │
+│                                                                   │
+│  Pro-Volume-Architektur:                                          │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │  Volume: my-app-data (10Gi, 3 Replicas)                  │    │
+│  │                                                           │    │
+│  │  ┌─────────────┐                                         │    │
+│  │  │   Engine    │  (läuft auf Knoten, auf dem Pod geplant)│    │
+│  │  │  (iSCSI)    │                                         │    │
+│  │  └──────┬──────┘                                         │    │
+│  │         │                                                 │    │
+│  │    ┌────┼────────────────┐                                │    │
+│  │    │    │                │                                │    │
+│  │    ▼    ▼                ▼                                │    │
+│  │  ┌────────┐  ┌────────┐  ┌────────┐                      │    │
+│  │  │Replica │  │Replica │  │Replica │                      │    │
+│  │  │worker-1│  │worker-2│  │worker-3│                      │    │
+│  │  └────────┘  └────────┘  └────────┘                      │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="schreibpfad">Schreibpfad</h4>
+<p>Wenn ein Pod Daten in ein Longhorn-Volume schreibt:</p>
+<ol>
+<li>Der Schreibvorgang gelangt zur <strong>Engine</strong> (iSCSI-Target auf dem Knoten des Pods)</li>
+<li>Die Engine <strong>repliziert synchron</strong> auf alle konfigurierten Replicas</li>
+<li>Der Schreibvorgang wird erst bestätigt, nachdem <strong>alle Replicas</strong> bestätigt haben</li>
+<li>Falls eine Replica ausfällt, markiert die Engine sie als degradiert und fährt mit den verbleibenden Replicas fort</li>
+<li>Der Longhorn Manager erkennt den degradierten Zustand und plant einen <strong>Neuaufbau</strong> auf einem gesunden Knoten</li>
+</ol>
+<h4 id="vergleich-longhorn-vs-local-path">Vergleich Longhorn vs. Local-Path</h4>
+<table>
+<thead>
+<tr>
+<th>Merkmal</th>
+<th>Longhorn</th>
+<th>Local-Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Replikation</td>
+<td>Ja (konfigurierbar, 1–5 Replicas)</td>
+<td>Nein (einzelner Knoten)</td>
+</tr>
+<tr>
+<td>Knotenausfalltoleranz</td>
+<td>Ja (Daten überleben Knotenverlust)</td>
+<td>Nein (Daten verloren bei Knotenausfall)</td>
+</tr>
+<tr>
+<td>Snapshots</td>
+<td>Ja (inkrementell, effizient)</td>
+<td>Nein</td>
+</tr>
+<tr>
+<td>Backups</td>
+<td>Ja (S3-, NFS-Ziele)</td>
+<td>Nein (manuell)</td>
+</tr>
+<tr>
+<td>Leistungsoverhead</td>
+<td>~10–15 % (Replikationskosten)</td>
+<td>Keiner (direkte Festplatten-I/O)</td>
+</tr>
+<tr>
+<td>Komplexität</td>
+<td>Mittel (Helm-Deployment)</td>
+<td>Minimal (in K3s integriert)</td>
+</tr>
+<tr>
+<td>Ressourcenverbrauch</td>
+<td>~500 MB RAM pro Knoten</td>
+<td>Vernachlässigbar</td>
+</tr>
+<tr>
+<td>Anwendungsfall</td>
+<td>Produktion, zustandsbehaftete Workloads</td>
+<td>Entwicklung, kurzlebige Daten</td>
+</tr>
+</tbody>
+</table>
+<h3 id="46-netzwerkarchitektur-dhcpv4dhcpv6">4.6 Netzwerkarchitektur (DHCPv4/DHCPv6)</h3>
+<h4 id="warum-dhcp-mit-statischen-leases">Warum DHCP mit statischen Leases?</h4>
+<p>Diese Bereitstellung verwendet <strong>DHCP</strong> (sowohl v4 als auch v6) für die Netzwerkkonfiguration anstelle statischer Konfiguration auf OS-Ebene, weil:</p>
+<ol>
+<li><strong>Zentralisierte Verwaltung</strong>: Die gesamte Adressierung wird auf dem DHCP-Server verwaltet</li>
+<li><strong>Konsistenz</strong>: Derselbe Mechanismus wie bei anderen Netzwerkgeräten</li>
+<li><strong>Flexibilität</strong>: Adressänderungen erfordern keine OS-Neukonfiguration</li>
+<li><strong>IPv6-Kompatibilität</strong>: SLAAC und DHCPv6 funktionieren natürlich mit diesem Modell</li>
+</ol>
+<p>Jedoch sind <strong>statische DHCP-Leases</strong> (Reservierungen) zwingend erforderlich, weil:</p>
+<ul>
+<li>K3s-Zertifikate an bestimmte IP-Adressen gebunden sind</li>
+<li>Die etcd-Clustermitgliedschaft stabile Adressierung erfordert</li>
+<li>HAProxy-Backends mit festen IPs konfiguriert sind</li>
+<li>Die Keepalived-VIP vorhersagbar sein muss</li>
+</ul>
+<h4 id="ipv6-und-forwarding-das-accept_ra-problem">IPv6 und Forwarding: Das accept_ra-Problem</h4>
+<p>Es besteht eine kritische Wechselwirkung zwischen IPv6-Forwarding und der Verarbeitung von Router Advertisements (RA):</p>
+<pre><code>Standard-Linux-Kernel-Verhalten:
+  net.ipv6.conf.all.forwarding = 0  →  accept_ra = 1 (RAs verarbeiten) ✓
+  net.ipv6.conf.all.forwarding = 1  →  accept_ra = 1 (RAs IGNORIEREN)  ✗
+
+K3s benötigt forwarding = 1 für Pod-Netzwerk.
+Dies BRICHT SLAAC und DHCPv6-Adressbezug.
+
+Lösung:
+  net.ipv6.conf.all.accept_ra = 2   →  RAs auch mit Forwarding verarbeiten ✓
+  net.ipv6.conf.eth0.accept_ra = 2  →  Schnittstellen-spezifische Überschreibung ✓
+</code></pre>
+<p>Diese Plattform konfiguriert automatisch <code>accept_ra = 2</code> auf allen Knoten, um sicherzustellen, dass die IPv6-Adressierung bei aktiviertem Paket-Forwarding weiterhin funktioniert.</p>
+<h4 id="dual-stack-netzwerk">Dual-Stack-Netzwerk</h4>
+<p>Der Cluster arbeitet im vollständigen Dual-Stack-Modus:</p>
+<table>
+<thead>
+<tr>
+<th>Netzwerk</th>
+<th>IPv4</th>
+<th>IPv6</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Knotennetzwerk</td>
+<td>192.168.1.0/24</td>
+<td>fd00::/64</td>
+</tr>
+<tr>
+<td>Pod-CIDR</td>
+<td>10.42.0.0/16</td>
+<td>fd42::/48</td>
+</tr>
+<tr>
+<td>Service-CIDR</td>
+<td>10.43.0.0/16</td>
+<td>fd43::/112</td>
+</tr>
+<tr>
+<td>VIP</td>
+<td>192.168.1.100</td>
+<td>fd00::100</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="5-bereitstellungsablauf">5. Bereitstellungsablauf</h2>
+<p>Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt hängt vom erfolgreichen Abschluss des vorherigen Schritts ab.</p>
+<h3 id="schritt-0-umgebungsvalidierung">Schritt 0: Umgebungsvalidierung</h3>
+<pre><code class="language-bash">./scripts/00-validate-environment.sh
+</code></pre>
+<p><strong>Zweck</strong>: Validiert alle Voraussetzungen, bevor Änderungen vorgenommen werden.</p>
+<p><strong>Durchgeführte Prüfungen</strong>:
+1. Inventardatei existiert und ist parsebar
+2. Erforderliche lokale Werkzeuge vorhanden (ssh, scp, curl, openssl)
+3. SSH-Schlüsseldatei existiert am konfigurierten Pfad
+4. SSH-Konnektivität zu allen Master-Knoten (Timeout: 10s pro Knoten)
+5. SSH-Konnektivität zu allen Worker-Knoten
+6. Tatsächliche IP-Adressen stimmen mit erwarteten DHCP-Leases überein (verifiziert DHCP-Funktion)
+7. Betriebssystemidentifikation auf jedem Knoten</p>
+<p><strong>Beendungsverhalten</strong>: Beendet sich mit Exit-Code 1, wenn eine Prüfung fehlschlägt, und meldet alle Fehler.</p>
+<h3 id="schritt-1-betriebssystemkonfiguration">Schritt 1: Betriebssystemkonfiguration</h3>
+<pre><code class="language-bash">./scripts/01-configure-os.sh
+</code></pre>
+<p><strong>Zweck</strong>: Konfiguriert alle Knoten für den K3s-Betrieb nach der OS-Installation.</p>
+<p><strong>Aktionen pro Knoten</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Aktion</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hostname setzen</td>
+<td><code>hostnamectl set-hostname &lt;hostname&gt;.&lt;domain&gt;</code></td>
+</tr>
+<tr>
+<td>/etc/hosts konfigurieren</td>
+<td>Alle Knoten-IPs (IPv4 + IPv6) für lokale Auflösung</td>
+</tr>
+<tr>
+<td>Kernel-Parameter</td>
+<td>ip_forward, bridge-nf-call, accept_ra=2, inotify, conntrack</td>
+</tr>
+<tr>
+<td>Kernel-Module</td>
+<td>br_netfilter, overlay, ip_vs, ip_vs_rr/wrr/sh, nf_conntrack</td>
+</tr>
+<tr>
+<td>Datei-Limits</td>
+<td>nofile=65536, nproc=65536 (soft+hard)</td>
+</tr>
+<tr>
+<td>Firewall</td>
+<td>Ports öffnen: 6443, 2379, 2380, 10250, 8472, 51820, etc.</td>
+</tr>
+<tr>
+<td>Pakete</td>
+<td>open-iscsi, nfs-client, cryptsetup, apparmor-parser</td>
+</tr>
+<tr>
+<td>Non-local Bind</td>
+<td>Für HAProxy (nur Master): ip_nonlocal_bind=1</td>
+</tr>
+<tr>
+<td>SSH-Schlüssel</td>
+<td>authorized_keys bereitstellen + sshd-Härtung</td>
+</tr>
+<tr>
+<td>GitHub-Schlüssel</td>
+<td>Abruf von https://github.com/&lt;user&gt;.keys</td>
+</tr>
+</tbody>
+</table>
+<h3 id="schritt-2-haproxy-keepalived-installation">Schritt 2: HAProxy- + Keepalived-Installation</h3>
+<pre><code class="language-bash">./scripts/02-install-haproxy.sh
+</code></pre>
+<p><strong>Zweck</strong>: Installiert und konfiguriert den API-Load-Balancer auf allen Master-Knoten.</p>
+<p><strong>Ablauf</strong>:
+1. HAProxy-Konfiguration generieren (Backends aus Inventar)
+2. Knotenspezifische Keepalived-Konfiguration generieren (unterschiedliche Priorität pro Knoten)
+3. Für jeden Master-Knoten:
+   - haproxy- und keepalived-Pakete installieren
+   - haproxy.cfg bereitstellen
+   - keepalived.conf bereitstellen (knotenspezifisch)
+   - Dienste aktivieren und starten
+4. VIP ist dem Knoten mit der höchsten Priorität zugewiesen — verifizieren
+5. HAProxy lauscht auf Port 6443 — verifizieren</p>
+<h3 id="schritt-3-ersten-k3s-server-bootstrappen">Schritt 3: Ersten K3s-Server bootstrappen</h3>
+<pre><code class="language-bash">./scripts/03-install-k3s-first.sh
+</code></pre>
+<p><strong>Zweck</strong>: Initialisiert den K3s-Cluster auf dem ersten Master-Knoten.</p>
+<p><strong>Kritische Details</strong>:
+- Verwendet das Flag <code>--cluster-init</code> (erstellt einen Einzelknoten-etcd-Cluster)
+- Erzeugt oder verwendet bereitgestelltes Cluster-Token
+- Enthält alle TLS-SANs (VIP, alle Master-IPs, alle Hostnamen)
+- Konfiguriert Dual-Stack-CIDRs
+- Deaktiviert Standard-Traefik und ServiceLB
+- Wartet, bis der Knoten den Status „Ready" erreicht
+- Speichert Token in lokaler Datei für nachfolgende Skripte</p>
+<h3 id="schritt-4-weitere-server-beitreten-lassen">Schritt 4: Weitere Server beitreten lassen</h3>
+<pre><code class="language-bash">./scripts/04-install-k3s-servers.sh
+</code></pre>
+<p><strong>Zweck</strong>: Lässt master-02 und master-03 dem Cluster beitreten.</p>
+<p><strong>Hauptunterschied zu Schritt 3</strong>: Verwendet <code>--server https://&lt;erster-master-IP&gt;:6443</code> anstelle von <code>--cluster-init</code>. Tritt über die direkte IP des ersten Masters bei (nicht die VIP), um Henne-Ei-Probleme während des Bootstraps zu vermeiden.</p>
+<p><strong>Nach Abschluss</strong>: Das 3-Knoten-etcd-Quorum ist hergestellt. Der Cluster ist nun hochverfügbar.</p>
+<h3 id="schritt-5-worker-knoten-beitreten-lassen">Schritt 5: Worker-Knoten beitreten lassen</h3>
+<pre><code class="language-bash">./scripts/05-install-k3s-agents.sh
+</code></pre>
+<p><strong>Zweck</strong>: Nimmt alle Worker-Knoten in den Cluster auf.</p>
+<p><strong>Wichtige Details</strong>:
+- Worker verbinden sich über die <strong>VIP</strong> (nicht einzelne Master) — HA ist bereits aktiv
+- Verwendet <code>INSTALL_K3S_EXEC="agent"</code> (nicht "server")
+- Wendet Worker-Labels automatisch an
+- Wartet, bis jeder Knoten den Status „Ready" erreicht</p>
+<h3 id="schritt-6-persistenten-speicher-installieren">Schritt 6: Persistenten Speicher installieren</h3>
+<pre><code class="language-bash">STORAGE_PROVIDER=longhorn ./scripts/06-install-storage.sh
+</code></pre>
+<p><strong>Zweck</strong>: Stellt die gewählte persistente Speicherlösung bereit.</p>
+<p><strong>Für Longhorn</strong>:
+1. Voraussetzungen verifizieren (open-iscsi, iscsid, Datenpfad)
+2. Helm auf dem ersten Master installieren
+3. Longhorn-Helm-Repository hinzufügen
+4. Mit generierter Values-Datei bereitstellen
+5. Warten, bis alle Pods bereit sind (Timeout: 300s)
+6. StorageClass-Erstellung verifizieren</p>
+<p><strong>Für local-path</strong>:
+1. Datenverzeichnis auf allen Knoten erstellen
+2. StorageClass-Konfiguration anwenden
+3. Als Standard-StorageClass festlegen</p>
+<hr />
+<h2 id="6-konfigurationserzeugungssystem">6. Konfigurationserzeugungssystem</h2>
+<h3 id="61-designphilosophie">6.1 Designphilosophie</h3>
+<p>Das Konfigurationserzeugungssystem folgt dem Prinzip <strong>„Einzige Wahrheitsquelle, mehrere Ausgaben"</strong>:</p>
+<pre><code>                    ┌─────────────────┐
+                    │  variables.yaml  │  ◄── Benutzer bearbeitet DIESE EINE Datei
+                    │  (240+ Zeilen)   │
+                    └────────┬─────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+     ┌────────────┐  ┌────────────┐  ┌────────────┐
+     │  Python    │  │  Web-UI    │  │  Skripte   │
+     │ generate.py│  │ (Browser)  │  │  (Bash)    │
+     └─────┬──────┘  └─────┬──────┘  └─────┬──────┘
+           │                │               │
+           ▼                ▼               │
+     ┌────────────┐  ┌────────────┐         │
+     │ generated/ │  │  ZIP-Datei │         │
+     │ (19 Dateien)│  │ (Download) │         │
+     └────────────┘  └────────────┘         │
+                                            ▼
+                                    ┌────────────┐
+                                    │ Remote-SSH │
+                                    │ Ausführung │
+                                    └────────────┘
+</code></pre>
+<h3 id="62-template-engine">6.2 Template-Engine</h3>
+<p><strong>Serverseitig (Python)</strong>: Verwendet Jinja2 3.1+ mit <code>StrictUndefined</code> — jede fehlende Variable verursacht einen sofortigen Fehler anstatt einer stillen leeren Ausgabe.</p>
+<p><strong>Clientseitig (Browser)</strong>: Verwendet Nunjucks 3.2.4, eine JavaScript-Portierung von Jinja2, die identische Template-Syntax in der Web-UI ermöglicht.</p>
+<h3 id="63-template-katalog">6.3 Template-Katalog</h3>
+<table>
+<thead>
+<tr>
+<th>Template</th>
+<th>Ausgabe</th>
+<th>Typ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>haproxy.cfg.j2</td>
+<td>haproxy/haproxy.cfg</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>keepalived.conf.j2</td>
+<td>keepalived/{hostname}/keepalived.conf</td>
+<td>Pro Master</td>
+</tr>
+<tr>
+<td>k3s-server.yaml.j2</td>
+<td>k3s/{hostname}/config.yaml</td>
+<td>Pro Master</td>
+</tr>
+<tr>
+<td>k3s-agent.yaml.j2</td>
+<td>k3s/{hostname}/config.yaml</td>
+<td>Pro Worker</td>
+</tr>
+<tr>
+<td>dhcpd4-leases.conf.j2</td>
+<td>network/dhcpd4-leases.conf</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>dhcpd6-leases.conf.j2</td>
+<td>network/dhcpd6-leases.conf</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>dnsmasq-leases.conf.j2</td>
+<td>network/dnsmasq-leases.conf</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>hosts.j2</td>
+<td>network/hosts</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>sysctl-k3s.conf.j2</td>
+<td>os/sysctl-k3s.conf</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>ssh-config.j2</td>
+<td>os/ssh-config.txt</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>disk-single-root.xml.j2</td>
+<td>os/disk-partitioning.xml</td>
+<td>Bedingt</td>
+</tr>
+<tr>
+<td>disk-multipart.xml.j2</td>
+<td>os/disk-partitioning.xml</td>
+<td>Bedingt</td>
+</tr>
+<tr>
+<td>disk-multidisk.xml.j2</td>
+<td>os/disk-partitioning.xml</td>
+<td>Bedingt</td>
+</tr>
+<tr>
+<td>disk-ignition.json.j2</td>
+<td>os/disk-ignition.json</td>
+<td>Einzeln</td>
+</tr>
+<tr>
+<td>longhorn-values.yaml.j2</td>
+<td>storage/longhorn-values.yaml</td>
+<td>Bedingt</td>
+</tr>
+<tr>
+<td>storageclass-local-path.yaml.j2</td>
+<td>storage/storageclass-local-path.yaml</td>
+<td>Bedingt</td>
+</tr>
+</tbody>
+</table>
+<h3 id="64-bedingtes-rendering">6.4 Bedingtes Rendering</h3>
+<p>Der Generator unterstützt zwei Arten von bedingter Logik:</p>
+<ol>
+<li><strong>Dynamische Template-Auswahl</strong>: Das Festplattenpartitionierungstemplate wird basierend auf dem Wert von <code>storage.disk_layout</code> ausgewählt</li>
+<li><strong>Anbieterbedingung</strong>: Speicher-Templates werden nur gerendert, wenn der passende Anbieter ausgewählt ist</li>
+</ol>
+<pre><code class="language-python"># Dynamische Template-Auswahl
+if target.get(&quot;dynamic_template&quot;):
+    disk_layout = variables[&quot;storage&quot;][&quot;disk_layout&quot;]
+    template_name = layout_map[disk_layout]
+
+# Bedingtes Rendering
+condition = target.get(&quot;condition&quot;)
+if condition and variables[&quot;storage&quot;][&quot;provider&quot;] != condition:
+    continue  # Dieses Template überspringen
+</code></pre>
+<hr />
+<h2 id="7-festplattenpartitionierungsstrategie">7. Festplattenpartitionierungsstrategie</h2>
+<h3 id="71-layout-optionen">7.1 Layout-Optionen</h3>
+<h4 id="option-a-einzelne-root-partition">Option A: Einzelne Root-Partition</h4>
+<pre><code>┌─────────────────────────────────────────┐
+│             /dev/sda                     │
+├──────────┬──────────────────────────────┤
+│ /boot/efi│            /                 │
+│  512 MB  │     (Btrfs, verbleibend)     │
+│  (vfat)  │                              │
+│          │  Subvolumes:                  │
+│          │  @/var                        │
+│          │  @/var/lib/rancher            │
+│          │  @/var/lib/longhorn           │
+│          │  @/home                       │
+│          │  @/.snapshots                 │
+└──────────┴──────────────────────────────┘
+</code></pre>
+<h4 id="option-b-mehrfachpartition-empfohlen">Option B: Mehrfachpartition (empfohlen)</h4>
+<pre><code>┌─────────────────────────────────────────┐
+│             /dev/sda                     │
+├──────────┬──────────┬──────────┬────────┤
+│ /boot/efi│    /     │/var/lib/ │Speicher│
+│  512 MB  │  40 GB   │rancher   │  max   │
+│  (vfat)  │ (Btrfs)  │ 100 GB   │ (XFS)  │
+│          │          │  (XFS)   │        │
+└──────────┴──────────┴──────────┴────────┘
+</code></pre>
+<h4 id="option-c-mehrere-festplatten">Option C: Mehrere Festplatten</h4>
+<pre><code>┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│    /dev/sda      │  │    /dev/sdb      │  │    /dev/sdc      │
+├──────────┬───────┤  ├──────────────────┤  ├──────────────────┤
+│ /boot/efi│   /   │  │  /var/lib/rancher│  │  /var/lib/       │
+│  512 MB  │  max  │  │    (gesamte Disk)│  │  longhorn        │
+│  (vfat)  │(Btrfs)│  │      (XFS)       │  │  (gesamte Disk)  │
+│          │       │  │                  │  │    (XFS)         │
+└──────────┴───────┘  └──────────────────┘  └──────────────────┘
+    OS-Disk                Daten-Disk           Speicher-Disk
+</code></pre>
+<h3 id="72-begrundung-der-dateisystemwahl">7.2 Begründung der Dateisystemwahl</h3>
+<table>
+<thead>
+<tr>
+<th>Einhängepunkt</th>
+<th>Dateisystem</th>
+<th>Begründung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>/</td>
+<td>Btrfs</td>
+<td>Unterstützt transactional-update-Snapshots, Copy-on-Write, Kompression</td>
+</tr>
+<tr>
+<td>/var/lib/rancher</td>
+<td>XFS</td>
+<td>Hohe Leistung für Container-Layer-Schreibvorgänge, kein CoW-Overhead</td>
+</tr>
+<tr>
+<td>/var/lib/longhorn</td>
+<td>XFS</td>
+<td>Blockspeicher-Backend benötigt konsistente sequenzielle Schreibleistung</td>
+</tr>
+<tr>
+<td>/boot/efi</td>
+<td>vfat</td>
+<td>Erforderlich durch UEFI-Spezifikation</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="8-sicherheitsmodell">8. Sicherheitsmodell</h2>
+<h3 id="81-ssh-schlusselverwaltung">8.1 SSH-Schlüsselverwaltung</h3>
+<p>Die Plattform bietet drei Methoden zur SSH-Schlüsselbereitstellung:</p>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│                 SSH-Schlüsselquellen                      │
+│                                                          │
+│  1. Manuelle Schlüssel (variables.yaml)                 │
+│     ssh.authorized_keys:                                 │
+│       - &quot;ssh-ed25519 AAAA... user@host&quot;                 │
+│                                                          │
+│  2. GitHub-Schlüsselimport (zur Bereitstellungszeit)    │
+│     ssh.github_users:                                    │
+│       - &quot;username&quot;                                       │
+│     → curl https://github.com/username.keys             │
+│                                                          │
+│  3. Lokale Schlüsseldatei als Fallback                  │
+│     ssh.key_path: &quot;~/.ssh/id_ed25519&quot;                   │
+│     → Liest ~/.ssh/id_ed25519.pub                       │
+└─────────────────────────────────────────────────┬───────┘
+                                              │
+                                              ▼
+                                    ┌──────────────────┐
+                                    │Alle Schlüssel     │
+                                    │zusammengeführt    │
+                                    │Bereitgestellt in: │
+                                    │  /root/.ssh/      │
+                                    │  authorized_keys  │
+                                    │  (alle Knoten)    │
+                                    └──────────────────┘
+</code></pre>
+<h3 id="82-ssh-hartung">8.2 SSH-Härtung</h3>
+<p>Wenn <code>ssh.disable_password_auth: true</code> gesetzt ist:</p>
+<pre><code>/etc/ssh/sshd_config.d/10-k3s-hardening.conf:
+  PasswordAuthentication no
+  ChallengeResponseAuthentication no
+  PubkeyAuthentication yes
+  PermitRootLogin prohibit-password
+  MaxAuthTries 3
+  ClientAliveInterval 300
+  ClientAliveCountMax 2
+</code></pre>
+<h3 id="83-netzwerksicherheit-firewall-regeln">8.3 Netzwerksicherheit (Firewall-Regeln)</h3>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Protokoll</th>
+<th>Richtung</th>
+<th>Zweck</th>
+<th>Knoten</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6443</td>
+<td>TCP</td>
+<td>Eingehend</td>
+<td>K3s API Server</td>
+<td>Master</td>
+</tr>
+<tr>
+<td>2379</td>
+<td>TCP</td>
+<td>Nur Master</td>
+<td>etcd Client</td>
+<td>Master</td>
+</tr>
+<tr>
+<td>2380</td>
+<td>TCP</td>
+<td>Nur Master</td>
+<td>etcd Peer</td>
+<td>Master</td>
+</tr>
+<tr>
+<td>10250</td>
+<td>TCP</td>
+<td>Eingehend</td>
+<td>Kubelet-Metriken</td>
+<td>Alle</td>
+</tr>
+<tr>
+<td>8472</td>
+<td>UDP</td>
+<td>Eingehend</td>
+<td>VXLAN (Flannel)</td>
+<td>Alle</td>
+</tr>
+<tr>
+<td>51820</td>
+<td>UDP</td>
+<td>Eingehend</td>
+<td>WireGuard IPv4</td>
+<td>Alle</td>
+</tr>
+<tr>
+<td>51821</td>
+<td>UDP</td>
+<td>Eingehend</td>
+<td>WireGuard IPv6</td>
+<td>Alle</td>
+</tr>
+<tr>
+<td>8404</td>
+<td>TCP</td>
+<td>Eingehend</td>
+<td>HAProxy-Statistiken</td>
+<td>Master</td>
+</tr>
+<tr>
+<td>30000-32767</td>
+<td>TCP/UDP</td>
+<td>Eingehend</td>
+<td>NodePort-Bereich</td>
+<td>Worker</td>
+</tr>
+<tr>
+<td>VRRP (112)</td>
+<td>IP</td>
+<td>Nur Master</td>
+<td>Keepalived</td>
+<td>Master</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-architektur-fur-persistenten-speicher">9. Architektur für persistenten Speicher</h2>
+<h3 id="91-longhorn-datenfluss">9.1 Longhorn-Datenfluss</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│  Pod schreibt Daten                                          │
+│  └──► /dev/longhorn/volume-xyz (Blockgerät)                 │
+│        └──► Longhorn Engine (iSCSI-Target, selber Knoten)   │
+│              └──► Synchrone Replikation                      │
+│                    ├──► Replica 1 (worker-01:/var/lib/longhorn/replicas/vol-xyz/)
+│                    ├──► Replica 2 (worker-02:/var/lib/longhorn/replicas/vol-xyz/)
+│                    └──► Replica 3 (worker-03:/var/lib/longhorn/replicas/vol-xyz/)
+│                                                              │
+│  Alle 3 Replicas bestätigen ──► Schreibvorgang an Pod bestätigt │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="92-storageclass-konfiguration">9.2 StorageClass-Konfiguration</h3>
+<p><strong>Longhorn-StorageClass</strong> (durch Helm bereitgestellt):</p>
+<pre><code class="language-yaml">apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn
+  annotations:
+    storageclass.kubernetes.io/is-default-class: &quot;true&quot;
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: &quot;3&quot;
+  staleReplicaTimeout: &quot;2880&quot;
+</code></pre>
+<p><strong>Local-Path-StorageClass</strong> (in K3s integriert):</p>
+<pre><code class="language-yaml">apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+  annotations:
+    storageclass.kubernetes.io/is-default-class: &quot;true&quot;
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+</code></pre>
+<hr />
+<h2 id="10-kontinuierliche-integration-und-qualitatssicherung">10. Kontinuierliche Integration und Qualitätssicherung</h2>
+<h3 id="101-ci-pipeline">10.1 CI-Pipeline</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                GitHub Actions Workflow: lint.yaml             │
+│                                                              │
+│  Auslöser: Push auf main, Pull-Request auf main             │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ python-lint  │  │  yaml-lint   │  │ config-lint  │      │
+│  │              │  │              │  │              │      │
+│  │ ruff check . │  │  yamllint    │  │lint_configs.py│     │
+│  │ ruff format  │  │  variables   │  │  HAProxy     │      │
+│  │  --check .   │  │  configs/k3s │  │  Keepalived  │      │
+│  │              │  │  workflows   │  │  DHCP        │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│                                                              │
+│  ┌──────────────────────────┐  ┌──────────────────────┐     │
+│  │   generate-validate      │  │    shell-lint        │     │
+│  │                          │  │                      │     │
+│  │  python3 generate.py     │  │  shellcheck -x       │     │
+│  │    --dry-run             │  │    scripts/*.sh      │     │
+│  │  python3 generate.py     │  │                      │     │
+│  │  Erzeugte Ausgabe linten │  │                      │     │
+│  │  yamllint erzeugtes YAML │  │                      │     │
+│  └──────────────────────────┘  └──────────────────────┘     │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="102-lint-werkzeuge">10.2 Lint-Werkzeuge</h3>
+<table>
+<thead>
+<tr>
+<th>Werkzeug</th>
+<th>Ziel</th>
+<th>Regeln</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ruff</strong></td>
+<td>Python (.py)</td>
+<td>PEP8, isort, bugbear, comprehensions, pathlib, type-checking</td>
+</tr>
+<tr>
+<td><strong>yamllint</strong></td>
+<td>YAML (.yaml)</td>
+<td>Zeilenlänge 120, 2-Leerzeichen-Einrückung, truthy-Werte</td>
+</tr>
+<tr>
+<td><strong>shellcheck</strong></td>
+<td>Shell (.sh)</td>
+<td>SC1091 deaktiviert (dynamisches Source), alle anderen Regeln</td>
+</tr>
+<tr>
+<td><strong>lint_configs.py</strong></td>
+<td>.cfg, .conf</td>
+<td>HAProxy-Sektionen, Keepalived-Syntax, DHCP-Klammern/-Semikolons</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-webbasierter-konfigurationsgenerator">11. Webbasierter Konfigurationsgenerator</h2>
+<h3 id="111-architektur">11.1 Architektur</h3>
+<p>Die Web-UI ist eine <strong>statische Single-Page-Anwendung</strong>, die auf GitHub Pages bereitgestellt wird. Sie läuft vollständig im Browser — keine serverseitige Verarbeitung, keine Datenübertragung.</p>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                  Browser (nur clientseitig)                    │
+│                                                              │
+│  ┌──────────┐    ┌──────────────┐    ┌──────────────────┐   │
+│  │HTML-      │──►│  Nunjucks    │──►│  Erzeugte Dateien │   │
+│  │Formular   │    │  Template-   │    │  (Vorschau +      │   │
+│  │(Benutzer- │    │  Engine      │    │   Download)       │   │
+│  │ eingabe)  │    │              │    │                   │   │
+│  └──────────┘    └──────────────┘    └────────┬──────────┘   │
+│                                               │              │
+│                                     ┌─────────▼──────────┐   │
+│                                     │      JSZip         │   │
+│                                     │  Archiv-Generator  │   │
+│                                     └─────────┬──────────┘   │
+│                                               │              │
+│                                     ┌─────────▼──────────┐   │
+│                                     │    FileSaver.js    │   │
+│                                     │  Download-Auslöser │   │
+│                                     └────────────────────┘   │
+│                                               │              │
+│                                               ▼              │
+│                                     k3s-config-v1.0.0-       │
+│                                     20260804-143052.zip      │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="112-technologie-stack">11.2 Technologie-Stack</h3>
+<table>
+<thead>
+<tr>
+<th>Bibliothek</th>
+<th>Version</th>
+<th>Zweck</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nunjucks</td>
+<td>3.2.4</td>
+<td>Jinja2-kompatible Template-Engine (CDN)</td>
+</tr>
+<tr>
+<td>JSZip</td>
+<td>3.10.1</td>
+<td>ZIP-Archiv-Erzeugung im Browser (CDN)</td>
+</tr>
+<tr>
+<td>FileSaver.js</td>
+<td>2.0.5</td>
+<td>Löst Datei-Download aus Blob aus (CDN)</td>
+</tr>
+<tr>
+<td>Pure CSS</td>
+<td>-</td>
+<td>Benutzerdefiniertes dunkles Theme, responsives Layout</td>
+</tr>
+</tbody>
+</table>
+<h3 id="113-zip-archiv-benennung">11.3 ZIP-Archiv-Benennung</h3>
+<pre><code>k3s-config-v1.0.0-20260804-143052.zip
+│           │     │        │
+│           │     │        └── Uhrzeit: HHMMSS
+│           │     └── Datum: JJJJMMTT
+│           └── Anwendungsversion
+└── Fester Präfix
+</code></pre>
+<hr />
+<h2 id="12-zusammenfassung">12. Zusammenfassung</h2>
+<p>Diese K3s-Baremetal-Hochverfügbarkeits-Bereitstellungsplattform bietet eine vollständige, produktionsreife Lösung für die Bereitstellung von Kubernetes auf physischen Servern. Die wesentlichen Eigenschaften sind:</p>
+<p><strong>Architektur</strong>:
+- 3-Knoten-Control-Plane mit eingebettetem etcd für HA-Konsens
+- HAProxy + Keepalived für API-Server-Load-Balancing und VIP-Failover
+- Toleriert Einzelknotenausfall ohne Dienstunterbrechung
+- Dual-Stack-Netzwerk (IPv4 + IPv6) durchgängig</p>
+<p><strong>Automatisierung</strong>:
+- 7 sequenzielle Skripte, die den gesamten Bereitstellungslebenszyklus abdecken
+- Konfigurationserzeugung aus einer einzelnen Variablendatei (19+ Ausgabedateien)
+- Webbasierter Generator für reinen Browserbetrieb (kein Server erforderlich)
+- GitHub Actions CI für kontinuierliche Qualitätssicherung</p>
+<p><strong>Speicher</strong>:
+- Longhorn verteilter replizierter Speicher (produktionsreif, Snapshots, Backups)
+- Local-Path-Provisioner als Alternative (Entwicklung/einfache Workloads)
+- 3 Festplattenlayout-Optionen für verschiedene Hardwarekonfigurationen</p>
+<p><strong>Sicherheit</strong>:
+- SSH-Schlüsselbereitstellung mit GitHub-Schlüsselimport
+- SSHD-Härtung (Passwortauthentifizierung deaktiviert, nur Schlüsselzugang)
+- Firewall-Konfiguration mit minimal geöffneten Ports
+- TLS-Zertifikate für alle Zugriffspfade (VIP + einzelne Knoten)
+- Unveränderliche OS-Basis (transactional-update, schreibgeschütztes Root)</p>
+<p><strong>Flexibilität</strong>:
+- Wahl zwischen SLE Micro (kommerziell) oder openSUSE MicroOS (Community)
+- Wahl zwischen Longhorn, local-path oder keinem Speicher
+- Wahl zwischen Einzelpartition, Mehrfachpartition oder Mehrfachfestplatten-Layout
+- DHCPv4-/DHCPv6-Unterstützung mit ISC DHCP-, dnsmasq- und Kea-Konfigurationen
+- Konfigurierbar über YAML, Web-UI oder Umgebungsvariablen</p>
+<p><strong>Qualität</strong>:
+- Gesamter Code gelintet (Python, YAML, Shell, Konfigurationsdateien)
+- Template-Validierung bei jedem Commit
+- Erzeugte Ausgabe durch CI-Pipeline verifiziert
+- Umfassende Dokumentation (7 Anleitungen + diese Referenz)</p>
+<hr />
+<p><em>Dieses Dokument beschreibt Version 1.0.0 der K3s-Baremetal-HA-Bereitstellungsplattform. Für die neuesten Aktualisierungen siehe das <a href="https://github.com/opentreecz/k3s">Repository</a>.</em></p>
+</body>
+</html>
