@@ -129,4 +129,4 @@ jobs:
 
       - name: Run shellcheck on scripts
         run: |
-          shellcheck -x scripts/*.sh
+          shellcheck --source-path=scripts -x scripts/*.sh
