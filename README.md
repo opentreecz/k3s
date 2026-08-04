@@ -1,5 +1,7 @@
 # K3s Baremetal High-Availability Cluster
 
+**Web Configuration Generator:** [opentreecz.github.io/k3s](https://opentreecz.github.io/k3s/)
+
 This repository provides a complete installation and configuration procedure for deploying a highly available K3s Kubernetes cluster on baremetal servers running **SUSE Linux Enterprise Micro (SLE Micro)** or **openSUSE MicroOS**.
 
 ## Architecture Overview
