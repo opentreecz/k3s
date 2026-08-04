@@ -9,6 +9,14 @@ net.ipv4.ip_forward = 1
 # IPv6 forwarding
 net.ipv6.conf.all.forwarding = 1
 
+# CRITICAL: Accept Router Advertisements even with forwarding enabled.
+# Without this (value=2), enabling forwarding causes the kernel to ignore RAs,
+# which breaks SLAAC and DHCPv6 address acquisition.
+# Value 2 = accept RAs even when acting as a router (forwarding enabled).
+net.ipv6.conf.all.accept_ra = 2
+net.ipv6.conf.default.accept_ra = 2
+net.ipv6.conf.{{ network.interface }}.accept_ra = 2
+
 # Bridge networking
 net.bridge.bridge-nf-call-iptables = 1
 net.bridge.bridge-nf-call-ip6tables = 1

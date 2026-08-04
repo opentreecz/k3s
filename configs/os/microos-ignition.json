@@ -28,7 +28,7 @@
         "mode": 420,
         "overwrite": true,
         "contents": {
-          "source": "data:,net.ipv4.ip_forward%20%3D%201%0Anet.ipv6.conf.all.forwarding%20%3D%201%0Anet.bridge.bridge-nf-call-iptables%20%3D%201%0Anet.bridge.bridge-nf-call-ip6tables%20%3D%201%0Afs.inotify.max_user_instances%20%3D%20524288%0Afs.inotify.max_user_watches%20%3D%20524288%0A"
+          "source": "data:,net.ipv4.ip_forward%20%3D%201%0Anet.ipv6.conf.all.forwarding%20%3D%201%0Anet.ipv6.conf.all.accept_ra%20%3D%202%0Anet.ipv6.conf.default.accept_ra%20%3D%202%0Anet.bridge.bridge-nf-call-iptables%20%3D%201%0Anet.bridge.bridge-nf-call-ip6tables%20%3D%201%0Afs.inotify.max_user_instances%20%3D%20524288%0Afs.inotify.max_user_watches%20%3D%20524288%0Anet.netfilter.nf_conntrack_max%20%3D%20131072%0A"
         }
       },
       {

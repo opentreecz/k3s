@@ -32,10 +32,10 @@ hostnamectl set-hostname master-01.k3s.local
 
 ### 2. Configure /etc/hosts
 
-Add all cluster nodes to `/etc/hosts` for local resolution:
+Add all cluster nodes to `/etc/hosts` for local resolution (both IPv4 and IPv6):
 
 ```
-# K3s Cluster Nodes
+# K3s Cluster Nodes - IPv4
 192.168.1.100   k3s-api.k3s.local k3s-api
 192.168.1.101   master-01.k3s.local master-01
 192.168.1.102   master-02.k3s.local master-02
@@ -43,6 +43,15 @@ Add all cluster nodes to `/etc/hosts` for local resolution:
 192.168.1.111   worker-01.k3s.local worker-01
 192.168.1.112   worker-02.k3s.local worker-02
 192.168.1.113   worker-03.k3s.local worker-03
+
+# K3s Cluster Nodes - IPv6
+fd00::100       k3s-api.k3s.local k3s-api
+fd00::101       master-01.k3s.local master-01
+fd00::102       master-02.k3s.local master-02
+fd00::103       master-03.k3s.local master-03
+fd00::111       worker-01.k3s.local worker-01
+fd00::112       worker-02.k3s.local worker-02
+fd00::113       worker-03.k3s.local worker-03
 ```
 
 ### 3. Configure Timezone and NTP
@@ -65,6 +74,14 @@ net.ipv4.ip_forward = 1
 # IPv6 forwarding
 net.ipv6.conf.all.forwarding = 1
 
+# CRITICAL: Accept Router Advertisements even with forwarding enabled.
+# Without accept_ra=2, enabling forwarding stops the kernel from processing RAs.
+# This breaks SLAAC and DHCPv6 address acquisition.
+# Value 2 = accept RAs even when forwarding is enabled (acting as router).
+net.ipv6.conf.all.accept_ra = 2
+net.ipv6.conf.default.accept_ra = 2
+net.ipv6.conf.eth0.accept_ra = 2
+
 # Bridge networking
 net.bridge.bridge-nf-call-iptables = 1
 net.bridge.bridge-nf-call-ip6tables = 1
@@ -79,6 +96,17 @@ EOF
 
 sysctl --system
 ```
+
+> **IPv6 Important Note**: The `accept_ra = 2` setting is critical when IPv6 addresses
+> are obtained via SLAAC or DHCPv6 (triggered by Router Advertisements). By default,
+> the Linux kernel stops processing Router Advertisements when IPv6 forwarding is
+> enabled (`forwarding = 1`). Setting `accept_ra = 2` overrides this behavior and
+> allows the node to continue receiving RAs while also forwarding IPv6 packets.
+>
+> Replace `eth0` with your actual network interface name. If your interface uses a
+> predictable name (e.g., `ens3`, `enp1s0`), adjust accordingly.
+>
+> Without this setting, nodes **will lose their IPv6 addresses** after sysctl is applied.
 
 ### 5. Load Required Kernel Modules
 
@@ -224,6 +252,11 @@ After configuration, verify each node:
 # Check kernel parameters
 sysctl net.ipv4.ip_forward
 sysctl net.ipv6.conf.all.forwarding
+sysctl net.ipv6.conf.all.accept_ra        # Must be 2
+sysctl net.ipv6.conf.eth0.accept_ra       # Must be 2
+
+# Verify IPv6 address is present (DHCPv6/SLAAC)
+ip -6 addr show eth0 | grep "scope global"
 
 # Check modules
 lsmod | grep br_netfilter
@@ -232,10 +265,15 @@ lsmod | grep overlay
 # Check hostname
 hostnamectl
 
-# Check connectivity to other nodes
+# Check connectivity to other nodes (IPv4)
 ping -c1 master-01
 ping -c1 master-02
 ping -c1 master-03
+
+# Check connectivity to other nodes (IPv6)
+ping6 -c1 fd00::101
+ping6 -c1 fd00::102
+ping6 -c1 fd00::103
 ```
 
 ## Next Steps

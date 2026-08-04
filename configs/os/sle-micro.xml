@@ -77,7 +77,7 @@
     </drive>
   </partitioning>
 
-  <!-- Network (DHCP) -->
+  <!-- Network (DHCP with IPv6 support) -->
   <networking>
     <keep_install_network config:type="boolean">true</keep_install_network>
     <managed config:type="boolean">false</managed>
@@ -86,6 +86,8 @@
         <device>eth0</device>
         <bootproto>dhcp</bootproto>
         <startmode>auto</startmode>
+        <!-- Enable DHCPv6 alongside DHCPv4 -->
+        <bootproto6>dhcp</bootproto6>
       </interface>
     </interfaces>
     <dhcp_options>

@@ -21,6 +21,7 @@ os:
 # -----------------------------------------------------------------------------
 network:
   # Physical interface name (must be consistent across nodes)
+  # Used for: Keepalived VIP binding, sysctl accept_ra per-interface setting
   interface: "eth0"
   # Cluster DNS domain
   domain: "k3s.local"
@@ -32,6 +33,12 @@ network:
   # Subnet mask (CIDR notation for VIP)
   subnet_mask_ipv4: 24
   subnet_mask_ipv6: 64
+  # IPv6 addressing mode: "dhcpv6", "slaac", or "both"
+  # This determines how nodes obtain their IPv6 addresses.
+  # In all cases, accept_ra=2 is set to allow RAs with forwarding enabled.
+  # IMPORTANT: IPv6 addresses specified for nodes below MUST match what
+  # DHCPv6/SLAAC assigns. Use DHCP static leases to guarantee this.
+  ipv6_mode: "dhcpv6"
 
 # -----------------------------------------------------------------------------
 # Virtual IP (API endpoint, managed by Keepalived)

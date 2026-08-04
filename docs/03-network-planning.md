@@ -10,6 +10,46 @@ Since the network is controlled by DHCPv4 and DHCPv6, **all nodes must have stat
 - DNS records must resolve to predictable addresses
 - Node identity in Kubernetes is tied to IP addresses
 
+## IPv6 and Forwarding: Critical Consideration
+
+K3s requires IPv6 forwarding (`net.ipv6.conf.all.forwarding = 1`) for pod-to-pod
+networking. However, the Linux kernel **stops processing Router Advertisements (RAs)
+when IPv6 forwarding is enabled** (default `accept_ra = 1` becomes ineffective).
+
+This means:
+- **SLAAC addresses will not be acquired** (or will be lost on sysctl apply)
+- **DHCPv6 triggered by RA M/O flags** may not work
+- Nodes will lose their IPv6 connectivity
+
+**Solution**: All nodes in this deployment set `net.ipv6.conf.all.accept_ra = 2`
+and `net.ipv6.conf.<interface>.accept_ra = 2`. Value `2` means "accept Router
+Advertisements even when forwarding is enabled."
+
+This is already handled automatically by:
+- `templates/jinja2/sysctl-k3s.conf.j2` (generated sysctl config)
+- `scripts/01-configure-os.sh` (deployment script)
+- `configs/os/microos-ignition.json` (Ignition first-boot config)
+
+### IPv6 Address Stability Requirements
+
+Regardless of whether you use DHCPv6 or SLAAC, the IPv6 addresses configured in
+`variables.yaml` **must be stable and predictable**:
+
+| Method | How to Ensure Stability |
+|--------|------------------------|
+| DHCPv6 | Configure static leases (DUID-based) on your DHCPv6 server |
+| SLAAC | Use EUI-64 (derived from MAC) or configure stable-privacy addresses; disable privacy extensions (`tempaddr = 0`) |
+| Both | DHCPv6 static lease is preferred for predictability |
+
+If using SLAAC with EUI-64, you can predict the IPv6 address from the MAC:
+```
+MAC:  aa:bb:cc:dd:ee:01
+EUI-64: a8bb:ccff:fedd:ee01  (flip 7th bit of first octet, insert ff:fe)
+Full address: fd00::a8bb:ccff:fedd:ee01/64
+```
+
+For simplicity, **DHCPv6 with static leases is strongly recommended** over SLAAC.
+
 ## IP Address Planning
 
 ### Required Addresses

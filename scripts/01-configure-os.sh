@@ -55,6 +55,9 @@ configure_node() {
         cat > /etc/sysctl.d/90-k3s.conf << 'SYSCTL'
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
+net.ipv6.conf.all.accept_ra = 2
+net.ipv6.conf.default.accept_ra = 2
+net.ipv6.conf.${NETWORK_INTERFACE}.accept_ra = 2
 net.bridge.bridge-nf-call-iptables = 1
 net.bridge.bridge-nf-call-ip6tables = 1
 fs.inotify.max_user_instances = 524288
