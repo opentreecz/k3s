@@ -5,6 +5,13 @@
 # Deploy sshd hardening to /etc/ssh/sshd_config.d/10-k3s-hardening.conf
 
 # === /root/.ssh/authorized_keys ===
+{% if ssh.github_users is defined %}
+{% for user in ssh.github_users %}
+{% if user %}
+# Keys fetched at deploy time from: https://github.com/{{ user }}.keys
+{% endif %}
+{% endfor %}
+{% endif %}
 {% for key in ssh.authorized_keys %}
 {{ key }}
 {% endfor %}

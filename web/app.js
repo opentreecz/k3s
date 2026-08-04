@@ -219,6 +219,7 @@
             ssh: {
                 user: "root",
                 port: parseInt(form.querySelector('[name="ssh_port"]').value) || 22,
+                github_users: (form.querySelector('[name="ssh_github_users"]').value || "").split(",").map(function (s) { return s.trim(); }).filter(function (s) { return s !== ""; }),
                 authorized_keys: (form.querySelector('[name="ssh_authorized_keys"]').value || "").split("\n").filter(function (l) { return l.trim() !== ""; }),
                 disable_password_auth: form.querySelector('[name="ssh_disable_password_auth"]').value === "true"
             },

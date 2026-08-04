@@ -252,6 +252,26 @@ if [[ -z "${SSH_AUTHORIZED_KEYS:-}" ]]; then
     fi
 fi
 
+# Fetch SSH keys from GitHub users if configured
+if [[ -n "${SSH_GITHUB_USERS:-}" ]]; then
+    log_info "Fetching SSH keys from GitHub..."
+    for github_user in ${SSH_GITHUB_USERS}; do
+        if [[ -z "${github_user}" ]]; then
+            continue
+        fi
+        log_info "  Fetching keys for github.com/${github_user}..."
+        github_keys=$(curl -sfL "https://github.com/${github_user}.keys" 2>/dev/null || echo "")
+        if [[ -n "${github_keys}" ]]; then
+            SSH_AUTHORIZED_KEYS="${SSH_AUTHORIZED_KEYS:-}
+${github_keys}"
+            log_success "  Fetched $(echo "${github_keys}" | wc -l) key(s) for ${github_user}"
+        else
+            log_warn "  No keys found for ${github_user} (or user does not exist)"
+        fi
+    done
+    echo ""
+fi
+
 # Default for disable password auth
 SSH_DISABLE_PASSWORD_AUTH="${SSH_DISABLE_PASSWORD_AUTH:-false}"
 
