@@ -480,7 +480,7 @@ ssh:
 {% for key in ssh.authorized_keys %}
     - "{{ key }}"
 {% endfor %}
-  disable_password_auth: {{ ssh.disable_password_auth | lower }}
+  disable_password_auth: {{ ssh.disable_password_auth }}
 
 storage:
   disk_layout: "{{ storage.disk_layout }}"
@@ -495,11 +495,11 @@ storage:
     version: "{{ storage.longhorn.version }}"
     replica_count: {{ storage.longhorn.replica_count }}
     data_path: "{{ storage.longhorn.data_path }}"
-    default_class: {{ storage.longhorn.default_class | lower }}
-    ui_enabled: {{ storage.longhorn.ui_enabled | lower }}
+    default_class: {{ storage.longhorn.default_class }}
+    ui_enabled: {{ storage.longhorn.ui_enabled }}
   local_path:
     data_path: "{{ storage.local_path.data_path }}"
-    default_class: {{ storage.local_path.default_class | lower }}
+    default_class: {{ storage.local_path.default_class }}
 `,
 
     // =========================================================================
@@ -660,8 +660,8 @@ storage:
           {"label": "efi", "sizeMiB": 512, "typeGuid": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"}{% if storage.disk_layout == "single-root" %},
           {"label": "root", "sizeMiB": 0}
 {% elif storage.disk_layout == "single-disk-multipart" %},
-          {"label": "root", "sizeMiB": {{ storage.os_root_size | replace("G", "") * 1024 }}},
-          {"label": "rancher", "sizeMiB": {{ storage.rancher_size | replace("G", "") * 1024 }}}{% if storage.provider != "none" %},
+          {"label": "root", "sizeMiB": {{ storage.os_root_size_mib }}},
+          {"label": "rancher", "sizeMiB": {{ storage.rancher_size_mib }}}{% if storage.provider != "none" %},
           {"label": "storage", "sizeMiB": 0}{% endif %}
 
 {% endif %}
@@ -699,7 +699,7 @@ defaultSettings:
   replicaAutoBalance: "best-effort"
 
 persistence:
-  defaultClass: {{ storage.longhorn.default_class | lower }}
+  defaultClass: {{ storage.longhorn.default_class }}
   defaultClassReplicaCount: {{ storage.longhorn.replica_count }}
   defaultFsType: "ext4"
   reclaimPolicy: "Delete"
@@ -708,7 +708,7 @@ csi:
   kubeletRootDir: "/var/lib/kubelet"
 
 longhornUI:
-  enabled: {{ storage.longhorn.ui_enabled | lower }}
+  enabled: {{ storage.longhorn.ui_enabled }}
   replicas: 1
 
 ingress:
@@ -744,7 +744,7 @@ kind: StorageClass
 metadata:
   name: local-path
   annotations:
-    storageclass.kubernetes.io/is-default-class: "{{ storage.local_path.default_class | lower }}"
+    storageclass.kubernetes.io/is-default-class: "{{ storage.local_path.default_class }}"
 provisioner: rancher.io/local-path
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Delete
