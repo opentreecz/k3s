@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K3s Cluster Configuration Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>K3s Cluster Configuration Generator</h1>
+        <p class="subtitle">Generate deployment configurations for a highly available K3s cluster on baremetal servers</p>
+        <div class="version-info">
+            <span id="app-version">v1.0.0</span>
+        </div>
+    </header>
+
+    <main>
+        <form id="config-form">
+            <!-- ============================================================ -->
+            <!-- OS Configuration -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Operating System</h2>
+                <div class="form-group">
+                    <label for="os-distribution">Distribution</label>
+                    <select id="os-distribution" name="os_distribution">
+                        <option value="microos">openSUSE MicroOS</option>
+                        <option value="sle-micro">SUSE Linux Enterprise Micro</option>
+                    </select>
+                </div>
+                <div class="form-group sle-only" style="display:none;">
+                    <label for="sle-reg-code">SLE Registration Code</label>
+                    <input type="text" id="sle-reg-code" name="sle_registration_code" placeholder="XXXXX-XXXXX-XXXXX-XXXXX">
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- Network Configuration -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Network</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="net-interface">Network Interface</label>
+                        <input type="text" id="net-interface" name="network_interface" value="eth0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="net-domain">Cluster Domain</label>
+                        <input type="text" id="net-domain" name="network_domain" value="k3s.local" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="net-dns">DNS Server</label>
+                        <input type="text" id="net-dns" name="dns_server" value="192.168.1.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="net-gateway">Gateway (IPv4)</label>
+                        <input type="text" id="net-gateway" name="gateway_ipv4" value="192.168.1.1" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="net-mask-v4">Subnet Mask IPv4 (CIDR)</label>
+                        <input type="number" id="net-mask-v4" name="subnet_mask_ipv4" value="24" min="8" max="30" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="net-mask-v6">Subnet Mask IPv6 (CIDR)</label>
+                        <input type="number" id="net-mask-v6" name="subnet_mask_ipv6" value="64" min="16" max="128" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="ipv6-mode">IPv6 Addressing Mode</label>
+                    <select id="ipv6-mode" name="ipv6_mode">
+                        <option value="dhcpv6">DHCPv6 (static leases)</option>
+                        <option value="slaac">SLAAC</option>
+                        <option value="both">Both (DHCPv6 + SLAAC)</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- Virtual IP -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Virtual IP (API Endpoint)</h2>
+                <p class="section-help">The VIP floats between master nodes via Keepalived for HA API access.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="vip-ipv4">VIP IPv4</label>
+                        <input type="text" id="vip-ipv4" name="vip_ipv4" value="192.168.1.100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="vip-ipv6">VIP IPv6</label>
+                        <input type="text" id="vip-ipv6" name="vip_ipv6" value="fd00::100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="vip-hostname">VIP Hostname</label>
+                        <input type="text" id="vip-hostname" name="vip_hostname" value="k3s-api" required>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- Master Nodes -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Master Nodes (Control Plane)</h2>
+                <p class="section-help">Exactly 3 master nodes are required for HA etcd quorum.</p>
+                <div id="master-nodes">
+                    <div class="node-entry" data-index="0">
+                        <h3>Master 1</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Hostname</label>
+                                <input type="text" name="master_hostname_0" value="master-01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv4</label>
+                                <input type="text" name="master_ipv4_0" value="192.168.1.101" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv6</label>
+                                <input type="text" name="master_ipv6_0" value="fd00::101" required>
+                            </div>
+                            <div class="form-group">
+                                <label>MAC Address</label>
+                                <input type="text" name="master_mac_0" value="aa:bb:cc:dd:ee:01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>DHCPv6 DUID</label>
+                                <input type="text" name="master_duid_0" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:01">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="node-entry" data-index="1">
+                        <h3>Master 2</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Hostname</label>
+                                <input type="text" name="master_hostname_1" value="master-02" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv4</label>
+                                <input type="text" name="master_ipv4_1" value="192.168.1.102" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv6</label>
+                                <input type="text" name="master_ipv6_1" value="fd00::102" required>
+                            </div>
+                            <div class="form-group">
+                                <label>MAC Address</label>
+                                <input type="text" name="master_mac_1" value="aa:bb:cc:dd:ee:02" required>
+                            </div>
+                            <div class="form-group">
+                                <label>DHCPv6 DUID</label>
+                                <input type="text" name="master_duid_1" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:02">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="node-entry" data-index="2">
+                        <h3>Master 3</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Hostname</label>
+                                <input type="text" name="master_hostname_2" value="master-03" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv4</label>
+                                <input type="text" name="master_ipv4_2" value="192.168.1.103" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv6</label>
+                                <input type="text" name="master_ipv6_2" value="fd00::103" required>
+                            </div>
+                            <div class="form-group">
+                                <label>MAC Address</label>
+                                <input type="text" name="master_mac_2" value="aa:bb:cc:dd:ee:03" required>
+                            </div>
+                            <div class="form-group">
+                                <label>DHCPv6 DUID</label>
+                                <input type="text" name="master_duid_2" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:03">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- Worker Nodes -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Worker Nodes</h2>
+                <p class="section-help">Add worker nodes that will run your workloads.</p>
+                <div id="worker-nodes">
+                    <div class="node-entry" data-index="0">
+                        <h3>Worker 1 <button type="button" class="btn-remove-worker" title="Remove">&#x2715;</button></h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Hostname</label>
+                                <input type="text" name="worker_hostname_0" value="worker-01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv4</label>
+                                <input type="text" name="worker_ipv4_0" value="192.168.1.111" required>
+                            </div>
+                            <div class="form-group">
+                                <label>IPv6</label>
+                                <input type="text" name="worker_ipv6_0" value="fd00::111" required>
+                            </div>
+                            <div class="form-group">
+                                <label>MAC Address</label>
+                                <input type="text" name="worker_mac_0" value="aa:bb:cc:dd:ee:11" required>
+                            </div>
+                            <div class="form-group">
+                                <label>DHCPv6 DUID</label>
+                                <input type="text" name="worker_duid_0" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:11">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" id="add-worker" class="btn-add">+ Add Worker Node</button>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- K3s Configuration -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>K3s Configuration</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="k3s-version">K3s Version (empty = latest)</label>
+                        <input type="text" id="k3s-version" name="k3s_version" placeholder="v1.30.0+k3s1">
+                    </div>
+                    <div class="form-group">
+                        <label for="k3s-token">Cluster Token (empty = auto-generate)</label>
+                        <input type="text" id="k3s-token" name="k3s_token" placeholder="Leave empty to auto-generate">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="k3s-api-port">API Server Port</label>
+                        <input type="number" id="k3s-api-port" name="k3s_api_port" value="6443" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="k3s-disable">Disable Components (comma-separated)</label>
+                        <input type="text" id="k3s-disable" name="k3s_disable" value="traefik,servicelb">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="k3s-cluster-cidr-v4">Cluster CIDR (IPv4)</label>
+                        <input type="text" id="k3s-cluster-cidr-v4" name="k3s_cluster_cidr_v4" value="10.42.0.0/16" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="k3s-cluster-cidr-v6">Cluster CIDR (IPv6)</label>
+                        <input type="text" id="k3s-cluster-cidr-v6" name="k3s_cluster_cidr_v6" value="fd42::/48" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="k3s-service-cidr-v4">Service CIDR (IPv4)</label>
+                        <input type="text" id="k3s-service-cidr-v4" name="k3s_service_cidr_v4" value="10.43.0.0/16" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="k3s-service-cidr-v6">Service CIDR (IPv6)</label>
+                        <input type="text" id="k3s-service-cidr-v6" name="k3s_service_cidr_v6" value="fd43::/112" required>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- HAProxy Configuration -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>HAProxy</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="haproxy-frontend-port">Frontend Port</label>
+                        <input type="number" id="haproxy-frontend-port" name="haproxy_frontend_port" value="6443" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="haproxy-stats-port">Stats Port</label>
+                        <input type="number" id="haproxy-stats-port" name="haproxy_stats_port" value="8404" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="haproxy-stats-user">Stats Username</label>
+                        <input type="text" id="haproxy-stats-user" name="haproxy_stats_user" value="admin">
+                    </div>
+                    <div class="form-group">
+                        <label for="haproxy-stats-pass">Stats Password</label>
+                        <input type="text" id="haproxy-stats-pass" name="haproxy_stats_password" value="admin">
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- Keepalived Configuration -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Keepalived</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="keepalived-router-id">Virtual Router ID (1-255)</label>
+                        <input type="number" id="keepalived-router-id" name="keepalived_router_id" value="51" min="1" max="255" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="keepalived-auth-pass">Auth Password (max 8 chars)</label>
+                        <input type="text" id="keepalived-auth-pass" name="keepalived_auth_pass" value="K3sHA024" maxlength="8" required>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- DHCP Configuration -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>DHCP</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dhcp-default-lease">Default Lease Time (seconds)</label>
+                        <input type="number" id="dhcp-default-lease" name="dhcp_default_lease_time" value="86400" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dhcp-max-lease">Max Lease Time (seconds)</label>
+                        <input type="number" id="dhcp-max-lease" name="dhcp_max_lease_time" value="604800" required>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- Actions -->
+            <!-- ============================================================ -->
+            <section class="config-section actions">
+                <button type="button" id="btn-generate" class="btn-primary">Generate Configuration</button>
+                <button type="button" id="btn-download" class="btn-download" disabled>Download ZIP Archive</button>
+            </section>
+        </form>
+
+        <!-- ============================================================ -->
+        <!-- Generated Files Preview -->
+        <!-- ============================================================ -->
+        <section id="output-section" class="config-section" style="display:none;">
+            <h2>Generated Files</h2>
+            <p id="output-summary"></p>
+            <div id="file-tabs">
+                <div class="tab-bar" id="tab-bar"></div>
+                <div class="tab-content">
+                    <pre id="file-preview"><code id="file-code"></code></pre>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>K3s Baremetal HA Cluster &mdash; Configuration Generator</p>
+        <p class="footer-links">
+            <a href="https://github.com/opentreecz/k3s">GitHub Repository</a> |
+            <a href="https://github.com/opentreecz/k3s/tree/main/docs">Documentation</a>
+        </p>
+    </footer>
+
+    <!-- Dependencies (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/nunjucks@3.2.4/browser/nunjucks.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+    <!-- Application -->
+    <script src="templates.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
