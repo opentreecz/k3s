@@ -1,0 +1,40 @@
+# yamllint configuration
+# https://yamllint.readthedocs.io/en/stable/configuration.html
+
+---
+extends: default
+
+rules:
+  # Allow long lines in YAML (configs often have long values)
+  line-length:
+    max: 120
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # Require consistent indentation
+  indentation:
+    spaces: 2
+    indent-sequences: true
+
+  # Allow truthy values like 'true', 'yes', etc.
+  truthy:
+    allowed-values: ["true", "false", "yes", "no"]
+    check-keys: false
+
+  # Comments spacing
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+
+  # Document markers
+  document-start: disable
+
+  # Brackets and braces
+  brackets:
+    max-spaces-inside: 0
+  braces:
+    max-spaces-inside: 0
+
+  # Empty lines
+  empty-lines:
+    max: 2

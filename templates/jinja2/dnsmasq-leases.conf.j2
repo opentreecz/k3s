@@ -1,0 +1,54 @@
+{# dnsmasq static leases template #}
+# dnsmasq Static DHCP Leases for K3s Cluster
+# Generated from templates/jinja2/dnsmasq-leases.conf.j2
+# Do not edit directly - modify variables.yaml and re-run generate.py
+
+# ==============================================================================
+# DHCPv4 Static Leases
+# Format: dhcp-host=<MAC>,<IPv4>,<hostname>,<lease-time>
+# ==============================================================================
+
+# Master nodes
+{% for master in masters %}
+dhcp-host={{ master.mac }},{{ master.ipv4 }},{{ master.hostname }},infinite
+{% endfor %}
+
+# Worker nodes
+{% for worker in workers %}
+dhcp-host={{ worker.mac }},{{ worker.ipv4 }},{{ worker.hostname }},infinite
+{% endfor %}
+
+# ==============================================================================
+# DHCPv6 Static Leases
+# Format: dhcp-host=id:<DUID>,[<IPv6>],<hostname>,<lease-time>
+# ==============================================================================
+
+# Master nodes
+{% for master in masters %}
+dhcp-host=id:{{ master.duid }},[{{ master.ipv6 }}],{{ master.hostname }},infinite
+{% endfor %}
+
+# Worker nodes
+{% for worker in workers %}
+dhcp-host=id:{{ worker.duid }},[{{ worker.ipv6 }}],{{ worker.hostname }},infinite
+{% endfor %}
+
+# ==============================================================================
+# DNS Records
+# ==============================================================================
+
+# VIP (API endpoint)
+address=/{{ vip.hostname }}.{{ network.domain }}/{{ vip.ipv4 }}
+address=/{{ vip.hostname }}.{{ network.domain }}/{{ vip.ipv6 }}
+
+# Master nodes
+{% for master in masters %}
+address=/{{ master.hostname }}.{{ network.domain }}/{{ master.ipv4 }}
+address=/{{ master.hostname }}.{{ network.domain }}/{{ master.ipv6 }}
+{% endfor %}
+
+# Worker nodes
+{% for worker in workers %}
+address=/{{ worker.hostname }}.{{ network.domain }}/{{ worker.ipv4 }}
+address=/{{ worker.hostname }}.{{ network.domain }}/{{ worker.ipv6 }}
+{% endfor %}

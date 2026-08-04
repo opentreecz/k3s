@@ -1,0 +1,40 @@
+{# Keepalived configuration template - generates one file per master node #}
+! Keepalived configuration for {{ node.hostname }}
+! Generated from templates/jinja2/keepalived.conf.j2
+! Do not edit directly - modify variables.yaml and re-run generate.py
+
+global_defs {
+    router_id K3S_APISERVER
+    script_user root
+    enable_script_security
+}
+
+vrrp_script check_haproxy {
+    script "/usr/bin/killall -0 haproxy"
+    interval {{ keepalived.check_interval }}
+    weight 2
+    fall {{ keepalived.fall }}
+    rise {{ keepalived.rise }}
+}
+
+vrrp_instance K3S_VIP {
+    state {{ "MASTER" if node_index == 0 else "BACKUP" }}
+    interface {{ network.interface }}
+    virtual_router_id {{ keepalived.router_id }}
+    priority {{ 101 - node_index }}
+    advert_int {{ keepalived.advert_int }}
+
+    authentication {
+        auth_type PASS
+        auth_pass {{ keepalived.auth_pass }}
+    }
+
+    virtual_ipaddress {
+        {{ vip.ipv4 }}/{{ network.subnet_mask_ipv4 }} dev {{ network.interface }}
+        {{ vip.ipv6 }}/{{ network.subnet_mask_ipv6 }} dev {{ network.interface }}
+    }
+
+    track_script {
+        check_haproxy
+    }
+}

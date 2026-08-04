@@ -1,0 +1,48 @@
+{# ISC DHCPv4 static leases template #}
+# ISC DHCP Server - DHCPv4 Static Leases for K3s Cluster
+# Generated from templates/jinja2/dhcpd4-leases.conf.j2
+# Do not edit directly - modify variables.yaml and re-run generate.py
+#
+# Include this file in your dhcpd.conf:
+#   include "/etc/dhcp/k3s-leases.conf";
+
+group k3s-cluster {
+    option domain-name "{{ network.domain }}";
+    option domain-name-servers {{ network.dns_servers | join(", ") }};
+    option routers {{ network.gateway_ipv4 }};
+    default-lease-time {{ dhcp.default_lease_time }};
+    max-lease-time {{ dhcp.max_lease_time }};
+
+    # =========================================================================
+    # Master Nodes (Control Plane + HAProxy)
+    # =========================================================================
+{% for master in masters %}
+    host {{ master.hostname }} {
+        hardware ethernet {{ master.mac }};
+        fixed-address {{ master.ipv4 }};
+        option host-name "{{ master.hostname }}";
+    }
+
+{% endfor %}
+    # =========================================================================
+    # Worker Nodes
+    # =========================================================================
+{% for worker in workers %}
+    host {{ worker.hostname }} {
+        hardware ethernet {{ worker.mac }};
+        fixed-address {{ worker.ipv4 }};
+        option host-name "{{ worker.hostname }}";
+    }
+
+{% endfor %}
+}
+
+# =========================================================================
+# VIP Reservation
+# Prevents the VIP address from being assigned dynamically.
+# =========================================================================
+host k3s-vip-reservation {
+    hardware ethernet 00:00:00:00:00:00;
+    fixed-address {{ vip.ipv4 }};
+    option host-name "{{ vip.hostname }}";
+}

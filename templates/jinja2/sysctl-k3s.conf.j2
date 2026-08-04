@@ -1,0 +1,25 @@
+{# Sysctl configuration template #}
+# Kernel parameters for K3s nodes
+# Generated from templates/jinja2/sysctl-k3s.conf.j2
+# Deploy to /etc/sysctl.d/90-k3s.conf
+
+# IPv4 forwarding
+net.ipv4.ip_forward = 1
+
+# IPv6 forwarding
+net.ipv6.conf.all.forwarding = 1
+
+# Bridge networking
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+
+# Increase inotify limits
+fs.inotify.max_user_instances = 524288
+fs.inotify.max_user_watches = 524288
+
+# Increase conntrack table size
+net.netfilter.nf_conntrack_max = 131072
+
+# HAProxy non-local bind (master nodes only)
+net.ipv4.ip_nonlocal_bind = 1
+net.ipv6.ip_nonlocal_bind = 1

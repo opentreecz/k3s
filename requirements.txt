@@ -1,0 +1,7 @@
+# K3s Configuration Generator - Python Dependencies
+jinja2>=3.1.0
+pyyaml>=6.0
+
+# Development / Linting
+ruff>=0.4.0
+yamllint>=1.35.0

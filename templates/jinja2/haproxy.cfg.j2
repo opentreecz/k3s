@@ -1,0 +1,62 @@
+{# HAProxy configuration template #}
+# K3s API Server Load Balancer
+# Generated from templates/jinja2/haproxy.cfg.j2
+# Do not edit directly - modify variables.yaml and re-run generate.py
+
+global
+    log         /dev/log local0
+    log         /dev/log local1 notice
+    chroot      /var/lib/haproxy
+    pidfile     /var/run/haproxy.pid
+    maxconn     4000
+    user        haproxy
+    group       haproxy
+    daemon
+    stats socket /var/lib/haproxy/stats
+
+defaults
+    mode                    tcp
+    log                     global
+    option                  tcplog
+    option                  dontlognull
+    option                  redispatch
+    retries                 3
+    timeout queue           1m
+    timeout connect         {{ haproxy.timeout_connect }}
+    timeout client          {{ haproxy.timeout_client }}
+    timeout server          {{ haproxy.timeout_server }}
+    timeout check           {{ haproxy.timeout_check }}
+    maxconn                 3000
+
+#---------------------------------------------------------------------
+# Statistics - accessible at http://<master-ip>:{{ haproxy.stats_port }}/stats
+#---------------------------------------------------------------------
+listen stats
+    bind *:{{ haproxy.stats_port }}
+    mode http
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+    stats auth {{ haproxy.stats_user }}:{{ haproxy.stats_password }}
+
+#---------------------------------------------------------------------
+# K3s API Server Frontend
+#---------------------------------------------------------------------
+frontend k3s_api_frontend
+    bind *:{{ haproxy.frontend_port }}
+    mode tcp
+    option tcplog
+    default_backend k3s_api_backend
+
+#---------------------------------------------------------------------
+# K3s API Server Backend
+#---------------------------------------------------------------------
+backend k3s_api_backend
+    mode tcp
+    option tcp-check
+    balance roundrobin
+    default-server inter {{ haproxy.backend_inter }} downinter {{ haproxy.backend_downinter }} rise {{ haproxy.backend_rise }} fall {{ haproxy.backend_fall }} slowstart {{ haproxy.backend_slowstart }} maxconn {{ haproxy.backend_maxconn }} maxqueue {{ haproxy.backend_maxqueue }} weight 100
+
+{% for master in masters %}
+    server {{ master.hostname }} {{ master.ipv4 }}:{{ k3s.api_port }} check
+{% endfor %}

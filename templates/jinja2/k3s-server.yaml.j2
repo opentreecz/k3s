@@ -1,0 +1,51 @@
+{# K3s server config template - generates one file per master node #}
+# K3s Server Configuration for {{ node.hostname }}
+# Generated from templates/jinja2/k3s-server.yaml.j2
+# Do not edit directly - modify variables.yaml and re-run generate.py
+{% if node_index == 0 %}
+
+# First server - initializes the cluster
+cluster-init: true
+{% else %}
+
+# Additional server - joins existing cluster
+server: "https://{{ masters[0].ipv4 }}:{{ k3s.api_port }}"
+{% endif %}
+
+# Cluster authentication token
+token: "{{ k3s.token or 'GENERATE_TOKEN_AT_DEPLOY_TIME' }}"
+
+# TLS Subject Alternative Names
+tls-san:
+  - "{{ vip.ipv4 }}"
+  - "{{ vip.ipv6 }}"
+  - "{{ vip.hostname }}.{{ network.domain }}"
+{% for master in masters %}
+  - "{{ master.hostname }}.{{ network.domain }}"
+  - "{{ master.hostname }}"
+  - "{{ master.ipv4 }}"
+{% endfor %}
+
+# Node networking (dual-stack)
+node-ip: "{{ node.ipv4 }},{{ node.ipv6 }}"
+advertise-address: "{{ node.ipv4 }}"
+
+# Cluster CIDR (dual-stack)
+cluster-cidr: "{{ k3s.cluster_cidr_v4 }},{{ k3s.cluster_cidr_v6 }}"
+service-cidr: "{{ k3s.service_cidr_v4 }},{{ k3s.service_cidr_v6 }}"
+
+# Disabled default components
+disable:
+{% for component in k3s.disable %}
+  - "{{ component }}"
+{% endfor %}
+
+# Kubeconfig
+write-kubeconfig-mode: "{{ k3s.kubeconfig_mode }}"
+
+# etcd
+etcd-expose-metrics: {{ k3s.etcd_expose_metrics | lower }}
+
+# API server arguments
+kube-apiserver-arg:
+  - "advertise-address={{ node.ipv4 }}"

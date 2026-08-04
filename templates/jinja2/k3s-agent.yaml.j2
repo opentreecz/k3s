@@ -1,0 +1,19 @@
+{# K3s agent config template - generates one file per worker node #}
+# K3s Agent Configuration for {{ node.hostname }}
+# Generated from templates/jinja2/k3s-agent.yaml.j2
+# Do not edit directly - modify variables.yaml and re-run generate.py
+
+# Connect to K3s API via the VIP (HAProxy load balanced)
+server: "https://{{ vip.ipv4 }}:{{ haproxy.frontend_port }}"
+
+# Cluster authentication token
+token: "{{ k3s.token or 'GENERATE_TOKEN_AT_DEPLOY_TIME' }}"
+
+# Node networking (dual-stack)
+node-ip: "{{ node.ipv4 }},{{ node.ipv6 }}"
+
+# Node labels
+node-label:
+{% for label in node.labels | default(["node-role.kubernetes.io/worker=worker"]) %}
+  - "{{ label }}"
+{% endfor %}

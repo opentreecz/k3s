@@ -1,0 +1,19 @@
+{# /etc/hosts entries template #}
+# /etc/hosts entries for K3s Cluster
+# Generated from templates/jinja2/hosts.j2
+# Do not edit directly - modify variables.yaml and re-run generate.py
+#
+# Append these entries to /etc/hosts on all cluster nodes.
+
+# K3s API Virtual IP
+{{ vip.ipv4 }}    {{ vip.hostname }}.{{ network.domain }} {{ vip.hostname }}
+
+# Master nodes
+{% for master in masters %}
+{{ master.ipv4 }}    {{ master.hostname }}.{{ network.domain }} {{ master.hostname }}
+{% endfor %}
+
+# Worker nodes
+{% for worker in workers %}
+{{ worker.ipv4 }}    {{ worker.hostname }}.{{ network.domain }} {{ worker.hostname }}
+{% endfor %}

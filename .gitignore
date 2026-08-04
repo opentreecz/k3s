@@ -4,6 +4,17 @@ inventory.conf
 # K3s token file (generated during install)
 .k3s-token
 
+# Generated configuration files (output of generate.py)
+generated/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
 # Kubeconfig
 *.kubeconfig
 kubeconfig

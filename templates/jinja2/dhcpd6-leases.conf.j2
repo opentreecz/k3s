@@ -1,0 +1,32 @@
+{# ISC DHCPv6 static leases template #}
+# ISC DHCP Server - DHCPv6 Static Leases for K3s Cluster
+# Generated from templates/jinja2/dhcpd6-leases.conf.j2
+# Do not edit directly - modify variables.yaml and re-run generate.py
+#
+# Include this file in your dhcpd6.conf:
+#   include "/etc/dhcp/k3s-leases6.conf";
+
+group k3s-cluster-v6 {
+    option dhcp6.domain-search "{{ network.domain }}";
+
+    # =========================================================================
+    # Master Nodes (Control Plane + HAProxy)
+    # =========================================================================
+{% for master in masters %}
+    host {{ master.hostname }} {
+        host-identifier option dhcp6.client-id {{ master.duid }};
+        fixed-address6 {{ master.ipv6 }};
+    }
+
+{% endfor %}
+    # =========================================================================
+    # Worker Nodes
+    # =========================================================================
+{% for worker in workers %}
+    host {{ worker.hostname }} {
+        host-identifier option dhcp6.client-id {{ worker.duid }};
+        fixed-address6 {{ worker.ipv6 }};
+    }
+
+{% endfor %}
+}

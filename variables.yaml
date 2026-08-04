@@ -1,0 +1,171 @@
+# =============================================================================
+# K3s Cluster Variables
+# =============================================================================
+# This is the single source of truth for all cluster configuration.
+# Edit this file, then run: python3 generate.py
+# Generated files will be placed in the generated/ directory.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Operating System
+# -----------------------------------------------------------------------------
+os:
+  # Options: "sle-micro" or "microos"
+  distribution: "microos"
+  # SLE Micro registration (only needed if distribution is "sle-micro")
+  sle_registration_code: ""
+  sle_registration_email: ""
+
+# -----------------------------------------------------------------------------
+# Network
+# -----------------------------------------------------------------------------
+network:
+  # Physical interface name (must be consistent across nodes)
+  interface: "eth0"
+  # Cluster DNS domain
+  domain: "k3s.local"
+  # DNS servers (provided via DHCP)
+  dns_servers:
+    - "192.168.1.1"
+  # Gateway (provided via DHCP)
+  gateway_ipv4: "192.168.1.1"
+  # Subnet mask (CIDR notation for VIP)
+  subnet_mask_ipv4: 24
+  subnet_mask_ipv6: 64
+
+# -----------------------------------------------------------------------------
+# Virtual IP (API endpoint, managed by Keepalived)
+# -----------------------------------------------------------------------------
+vip:
+  ipv4: "192.168.1.100"
+  ipv6: "fd00::100"
+  hostname: "k3s-api"
+
+# -----------------------------------------------------------------------------
+# Master Nodes (Control Plane)
+# -----------------------------------------------------------------------------
+masters:
+  - hostname: "master-01"
+    ipv4: "192.168.1.101"
+    ipv6: "fd00::101"
+    mac: "aa:bb:cc:dd:ee:01"
+    # DHCPv6 DUID (obtain from client after first boot)
+    duid: "00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:01"
+  - hostname: "master-02"
+    ipv4: "192.168.1.102"
+    ipv6: "fd00::102"
+    mac: "aa:bb:cc:dd:ee:02"
+    duid: "00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:02"
+  - hostname: "master-03"
+    ipv4: "192.168.1.103"
+    ipv6: "fd00::103"
+    mac: "aa:bb:cc:dd:ee:03"
+    duid: "00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:03"
+
+# -----------------------------------------------------------------------------
+# Worker Nodes
+# -----------------------------------------------------------------------------
+workers:
+  - hostname: "worker-01"
+    ipv4: "192.168.1.111"
+    ipv6: "fd00::111"
+    mac: "aa:bb:cc:dd:ee:11"
+    duid: "00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:11"
+    labels:
+      - "node-role.kubernetes.io/worker=worker"
+      - "disktype=ssd"
+  - hostname: "worker-02"
+    ipv4: "192.168.1.112"
+    ipv6: "fd00::112"
+    mac: "aa:bb:cc:dd:ee:12"
+    duid: "00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:12"
+    labels:
+      - "node-role.kubernetes.io/worker=worker"
+      - "disktype=ssd"
+  - hostname: "worker-03"
+    ipv4: "192.168.1.113"
+    ipv6: "fd00::113"
+    mac: "aa:bb:cc:dd:ee:13"
+    duid: "00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:13"
+    labels:
+      - "node-role.kubernetes.io/worker=worker"
+      - "disktype=hdd"
+
+# -----------------------------------------------------------------------------
+# K3s Configuration
+# -----------------------------------------------------------------------------
+k3s:
+  # Version (leave empty for latest stable)
+  version: ""
+  # Cluster token (leave empty to auto-generate during deployment)
+  token: ""
+  # API server port (on each master, behind HAProxy)
+  api_port: 6443
+  # Disable default components
+  disable:
+    - "traefik"
+    - "servicelb"
+  # Cluster networking (dual-stack)
+  cluster_cidr_v4: "10.42.0.0/16"
+  cluster_cidr_v6: "fd42::/48"
+  service_cidr_v4: "10.43.0.0/16"
+  service_cidr_v6: "fd43::/112"
+  # Write kubeconfig mode
+  kubeconfig_mode: "0644"
+  # Expose etcd metrics
+  etcd_expose_metrics: true
+
+# -----------------------------------------------------------------------------
+# HAProxy
+# -----------------------------------------------------------------------------
+haproxy:
+  # Frontend port (clients connect here)
+  frontend_port: 6443
+  # Stats page
+  stats_port: 8404
+  stats_user: "admin"
+  stats_password: "admin"
+  # Timeouts
+  timeout_connect: "10s"
+  timeout_client: "1m"
+  timeout_server: "1m"
+  timeout_check: "10s"
+  # Backend health check
+  backend_inter: "10s"
+  backend_downinter: "5s"
+  backend_rise: 2
+  backend_fall: 2
+  backend_slowstart: "60s"
+  backend_maxconn: 250
+  backend_maxqueue: 256
+
+# -----------------------------------------------------------------------------
+# Keepalived
+# -----------------------------------------------------------------------------
+keepalived:
+  # Virtual router ID (must be unique on your L2 segment, 1-255)
+  router_id: 51
+  # Authentication password (max 8 chars for VRRP)
+  auth_pass: "K3sHA024"
+  # Health check interval (seconds)
+  check_interval: 2
+  # Failover timings
+  advert_int: 1
+  fall: 3
+  rise: 2
+
+# -----------------------------------------------------------------------------
+# DHCP Configuration
+# -----------------------------------------------------------------------------
+dhcp:
+  # Default and max lease times (seconds)
+  default_lease_time: 86400
+  max_lease_time: 604800
+
+# -----------------------------------------------------------------------------
+# SSH
+# -----------------------------------------------------------------------------
+ssh:
+  user: "root"
+  port: 22
+  key_path: "~/.ssh/id_ed25519"
