@@ -1,0 +1,30 @@
+# K3s Agent Configuration
+# Deploy to /etc/rancher/k3s/config.yaml on agent (worker) nodes
+#
+# Agents connect to the K3s API via the HAProxy VIP for high availability.
+# Adjust node-ip per worker node.
+
+# Connect to K3s API via the VIP (HAProxy load balanced)
+server: "https://192.168.1.100:6443"
+
+# Shared cluster token
+token: "YOUR_TOKEN_HERE"
+
+# Node IP (dual-stack: IPv4,IPv6) - adjust per worker
+node-ip: "192.168.1.111,fd00::111"
+
+# Node labels
+node-label:
+  - "node-role.kubernetes.io/worker=worker"
+
+# Optional: Node taints
+# node-taint:
+#   - "special=true:NoSchedule"
+
+# Optional: kubelet arguments
+# kubelet-arg:
+#   - "max-pods=110"
+#   - "eviction-hard=memory.available<500Mi,nodefs.available<10%"
+
+# Optional: protect kernel defaults
+# protect-kernel-defaults: true

@@ -1,0 +1,59 @@
+# K3s Server Configuration
+# Deploy to /etc/rancher/k3s/config.yaml on server (master) nodes
+#
+# For the FIRST server node, include "cluster-init: true"
+# For additional server nodes, use "server: https://<first-master>:6443"
+#
+# This is a template - adjust values from your inventory.conf
+
+# --- First server only (remove for additional servers) ---
+cluster-init: true
+
+# --- Additional servers only (remove cluster-init above) ---
+# server: "https://192.168.1.101:6443"
+
+# Shared token for cluster authentication
+token: "YOUR_TOKEN_HERE"
+
+# TLS Subject Alternative Names - include VIP, all master IPs and hostnames
+tls-san:
+  - "192.168.1.100"
+  - "fd00::100"
+  - "k3s-api.k3s.local"
+  - "master-01.k3s.local"
+  - "master-01"
+  - "192.168.1.101"
+  - "master-02.k3s.local"
+  - "master-02"
+  - "192.168.1.102"
+  - "master-03.k3s.local"
+  - "master-03"
+  - "192.168.1.103"
+
+# Node IP (dual-stack: IPv4,IPv6) - adjust per node
+node-ip: "192.168.1.101,fd00::101"
+advertise-address: "192.168.1.101"
+
+# Cluster networking (dual-stack)
+cluster-cidr: "10.42.0.0/16,fd42::/48"
+service-cidr: "10.43.0.0/16,fd43::/112"
+
+# Disable default components (we use our own ingress and LB)
+disable:
+  - traefik
+  - servicelb
+
+# Kubeconfig permissions
+write-kubeconfig-mode: "0644"
+
+# etcd metrics
+etcd-expose-metrics: true
+
+# API server arguments
+kube-apiserver-arg:
+  - "advertise-address=192.168.1.101"
+
+# Optional: kubelet arguments
+# kubelet-arg:
+#   - "max-pods=110"
+#   - "eviction-hard=memory.available<500Mi,nodefs.available<10%"

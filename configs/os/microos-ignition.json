@@ -1,0 +1,60 @@
+{
+  "ignition": {
+    "version": "3.3.0"
+  },
+  "passwd": {
+    "users": [
+      {
+        "name": "root",
+        "passwordHash": "$6$rounds=4096$YOURSALT$YOURHASH",
+        "sshAuthorizedKeys": [
+          "ssh-ed25519 YOUR_PUBLIC_KEY_HERE user@host"
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "files": [
+      {
+        "path": "/etc/hostname",
+        "mode": 420,
+        "overwrite": true,
+        "contents": {
+          "source": "data:,k3s-node"
+        }
+      },
+      {
+        "path": "/etc/sysctl.d/90-k3s.conf",
+        "mode": 420,
+        "overwrite": true,
+        "contents": {
+          "source": "data:,net.ipv4.ip_forward%20%3D%201%0Anet.ipv6.conf.all.forwarding%20%3D%201%0Anet.bridge.bridge-nf-call-iptables%20%3D%201%0Anet.bridge.bridge-nf-call-ip6tables%20%3D%201%0Afs.inotify.max_user_instances%20%3D%20524288%0Afs.inotify.max_user_watches%20%3D%20524288%0A"
+        }
+      },
+      {
+        "path": "/etc/modules-load.d/k3s.conf",
+        "mode": 420,
+        "overwrite": true,
+        "contents": {
+          "source": "data:,br_netfilter%0Aoverlay%0Aip_vs%0Aip_vs_rr%0Aip_vs_wrr%0Aip_vs_sh%0Anf_conntrack%0A"
+        }
+      },
+      {
+        "path": "/etc/security/limits.d/90-k3s.conf",
+        "mode": 420,
+        "overwrite": true,
+        "contents": {
+          "source": "data:,*%20soft%20nofile%2065536%0A*%20hard%20nofile%2065536%0A*%20soft%20nproc%2065536%0A*%20hard%20nproc%2065536%0A"
+        }
+      }
+    ]
+  },
+  "systemd": {
+    "units": [
+      {
+        "enabled": true,
+        "name": "sshd.service"
+      }
+    ]
+  }
+}

@@ -1,0 +1,149 @@
+<?xml version="1.0"?>
+<!DOCTYPE profile>
+<!--
+  AutoYaST Profile for SUSE Linux Enterprise Micro
+  Use with: autoyast=http://<server>/sle-micro.xml
+
+  IMPORTANT: Customize the following before use:
+  - Registration code (reg_code)
+  - Root password hash (user_password)
+  - SSH public key
+  - Disk device name (/dev/sda or /dev/nvme0n1)
+  - Network interface name if not eth0
+-->
+<profile xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">
+
+  <!-- Registration -->
+  <suse_register>
+    <do_registration config:type="boolean">true</do_registration>
+    <reg_code>YOUR_REGISTRATION_CODE</reg_code>
+    <install_updates config:type="boolean">true</install_updates>
+    <addons config:type="list">
+      <addon>
+        <name>sle-module-containers</name>
+        <version>6.0</version>
+        <arch>x86_64</arch>
+      </addon>
+    </addons>
+  </suse_register>
+
+  <!-- Language and Keyboard -->
+  <language>
+    <language>en_US</language>
+    <languages>en_US</languages>
+  </language>
+  <keyboard>
+    <keymap>english-us</keymap>
+  </keyboard>
+  <timezone>
+    <hwclock>UTC</hwclock>
+    <timezone>Europe/Berlin</timezone>
+  </timezone>
+
+  <!-- NTP -->
+  <ntp-client>
+    <ntp_policy>auto</ntp_policy>
+    <ntp_servers config:type="list">
+      <ntp_server>
+        <address>pool.ntp.org</address>
+      </ntp_server>
+    </ntp_servers>
+  </ntp-client>
+
+  <!-- Disk partitioning -->
+  <partitioning config:type="list">
+    <drive>
+      <!-- Change to /dev/nvme0n1 for NVMe drives -->
+      <device>/dev/sda</device>
+      <initialize config:type="boolean">true</initialize>
+      <use>all</use>
+      <partitions config:type="list">
+        <partition>
+          <mount>/boot/efi</mount>
+          <size>512M</size>
+          <filesystem config:type="symbol">vfat</filesystem>
+        </partition>
+        <partition>
+          <mount>/</mount>
+          <size>40G</size>
+          <filesystem config:type="symbol">btrfs</filesystem>
+        </partition>
+        <partition>
+          <mount>/var/lib/rancher</mount>
+          <size>max</size>
+          <filesystem config:type="symbol">xfs</filesystem>
+        </partition>
+      </partitions>
+    </drive>
+  </partitioning>
+
+  <!-- Network (DHCP) -->
+  <networking>
+    <keep_install_network config:type="boolean">true</keep_install_network>
+    <managed config:type="boolean">false</managed>
+    <interfaces config:type="list">
+      <interface>
+        <device>eth0</device>
+        <bootproto>dhcp</bootproto>
+        <startmode>auto</startmode>
+      </interface>
+    </interfaces>
+    <dhcp_options>
+      <dhclient_hostname_option>AUTO</dhclient_hostname_option>
+    </dhcp_options>
+    <ipv6 config:type="boolean">true</ipv6>
+  </networking>
+
+  <!-- Firewall -->
+  <firewall>
+    <enable_firewall config:type="boolean">true</enable_firewall>
+    <start_firewall config:type="boolean">true</start_firewall>
+  </firewall>
+
+  <!-- Users -->
+  <users config:type="list">
+    <user>
+      <username>root</username>
+      <!-- Generate hash with: openssl passwd -6 'YourPassword' -->
+      <user_password>$6$rounds=4096$YOURSALT$YOURHASH</user_password>
+      <encrypted config:type="boolean">true</encrypted>
+      <authorized_keys config:type="list">
+        <listentry>ssh-ed25519 YOUR_PUBLIC_KEY_HERE user@host</listentry>
+      </authorized_keys>
+    </user>
+  </users>
+
+  <!-- Services -->
+  <services-manager>
+    <default_target>multi-user</default_target>
+    <services config:type="list">
+      <service>
+        <service_name>sshd</service_name>
+        <service_status>enable</service_status>
+      </service>
+      <service>
+        <service_name>chronyd</service_name>
+        <service_status>enable</service_status>
+      </service>
+    </services>
+  </services-manager>
+
+  <!-- Software -->
+  <software>
+    <install_recommended config:type="boolean">false</install_recommended>
+    <packages config:type="list">
+      <package>open-iscsi</package>
+      <package>nfs-client</package>
+      <package>cryptsetup</package>
+      <package>apparmor-parser</package>
+      <package>patterns-microos-base</package>
+    </packages>
+  </software>
+
+  <!-- Security -->
+  <security>
+    <console_shutdown>reboot</console_shutdown>
+    <permission_security>secure</permission_security>
+  </security>
+
+</profile>

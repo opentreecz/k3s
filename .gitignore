@@ -1,0 +1,20 @@
+# Inventory with secrets
+inventory.conf
+
+# K3s token file (generated during install)
+.k3s-token
+
+# Kubeconfig
+*.kubeconfig
+kubeconfig
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
