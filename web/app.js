@@ -216,6 +216,12 @@
                 default_lease_time: parseInt(form.querySelector('[name="dhcp_default_lease_time"]').value),
                 max_lease_time: parseInt(form.querySelector('[name="dhcp_max_lease_time"]').value)
             },
+            ssh: {
+                user: "root",
+                port: parseInt(form.querySelector('[name="ssh_port"]').value) || 22,
+                authorized_keys: (form.querySelector('[name="ssh_authorized_keys"]').value || "").split("\n").filter(function (l) { return l.trim() !== ""; }),
+                disable_password_auth: form.querySelector('[name="ssh_disable_password_auth"]').value === "true"
+            },
             storage: {
                 disk_layout: document.querySelector('input[name="disk_layout"]:checked').value,
                 os_disk: form.querySelector('[name="os_disk"]').value,
@@ -256,6 +262,8 @@
             "network/dnsmasq-leases.conf",
             "network/hosts",
             "os/sysctl-k3s.conf",
+            "os/ssh-authorized-keys",
+            "os/sshd-hardening.conf",
             "variables.yaml"
         ];
 

@@ -1,0 +1,24 @@
+{# SSH authorized_keys and sshd_config hardening template #}
+# SSH Configuration for K3s Cluster Nodes
+# Generated from templates/jinja2/ssh-config.j2
+# Deploy authorized_keys to /root/.ssh/authorized_keys
+# Deploy sshd hardening to /etc/ssh/sshd_config.d/10-k3s-hardening.conf
+
+# === /root/.ssh/authorized_keys ===
+{% for key in ssh.authorized_keys %}
+{{ key }}
+{% endfor %}
+
+# === /etc/ssh/sshd_config.d/10-k3s-hardening.conf ===
+# SSH hardening for K3s cluster nodes
+{% if ssh.disable_password_auth %}
+PasswordAuthentication no
+{% else %}
+PasswordAuthentication yes
+{% endif %}
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin prohibit-password
+MaxAuthTries 3
+ClientAliveInterval 300
+ClientAliveCountMax 2

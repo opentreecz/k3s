@@ -130,6 +130,13 @@ RENDER_TARGETS: list[dict[str, Any]] = [
         "per_node": False,
         "group": "os",
     },
+    # SSH configuration (authorized_keys + sshd hardening)
+    {
+        "template": "ssh-config.j2",
+        "output": "os/ssh-config.txt",
+        "per_node": False,
+        "group": "os",
+    },
     # Disk partitioning - AutoYaST (template resolved dynamically)
     {
         "template": None,  # resolved dynamically based on disk_layout

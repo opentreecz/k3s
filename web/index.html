@@ -36,6 +36,31 @@
             </section>
 
             <!-- ============================================================ -->
+            <!-- SSH Key Configuration -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>SSH Keys</h2>
+                <p class="section-help">Public SSH keys deployed to all nodes during installation for passwordless access.</p>
+                <div class="form-group">
+                    <label for="ssh-keys">Authorized Public Keys (one per line)</label>
+                    <textarea id="ssh-keys" name="ssh_authorized_keys" rows="4" placeholder="ssh-ed25519 AAAAC3... user@host&#10;ssh-rsa AAAAB3... another@host" style="width:100%;font-family:var(--font-mono);font-size:0.85rem;background:var(--color-input-bg);border:1px solid var(--color-border);border-radius:var(--radius);color:var(--color-text);padding:0.5rem 0.75rem;resize:vertical;"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ssh-disable-password">Disable Password Authentication</label>
+                        <select id="ssh-disable-password" name="ssh_disable_password_auth">
+                            <option value="true">Yes (recommended, key-only access)</option>
+                            <option value="false">No (allow password + key)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="ssh-port">SSH Port</label>
+                        <input type="number" id="ssh-port" name="ssh_port" value="22" min="1" max="65535">
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
             <!-- Network Configuration -->
             <!-- ============================================================ -->
             <section class="config-section">

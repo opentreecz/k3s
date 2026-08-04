@@ -159,6 +159,62 @@ HAPROXY
 }
 
 # ---------------------------------------------------------------------------
+# Deploy SSH keys to a single node
+# ---------------------------------------------------------------------------
+deploy_ssh_keys() {
+    local hostname="$1"
+    local ipv4="$2"
+
+    log_info "Deploying SSH keys to ${hostname} (${ipv4})..."
+
+    # Deploy authorized_keys
+    if [[ -n "${SSH_AUTHORIZED_KEYS:-}" ]]; then
+        remote_exec "${ipv4}" "
+            mkdir -p /root/.ssh
+            chmod 700 /root/.ssh
+            cat > /root/.ssh/authorized_keys << 'AUTHKEYS'
+${SSH_AUTHORIZED_KEYS}
+AUTHKEYS
+            chmod 600 /root/.ssh/authorized_keys
+        "
+        log_success "  SSH authorized_keys deployed"
+    elif [[ -f "${SSH_KEY_PATH}.pub" ]]; then
+        # Fallback: use the public key file from ssh.key_path
+        local pubkey
+        pubkey=$(cat "${SSH_KEY_PATH}.pub")
+        remote_exec "${ipv4}" "
+            mkdir -p /root/.ssh
+            chmod 700 /root/.ssh
+            echo '${pubkey}' >> /root/.ssh/authorized_keys
+            sort -u /root/.ssh/authorized_keys -o /root/.ssh/authorized_keys
+            chmod 600 /root/.ssh/authorized_keys
+        "
+        log_success "  SSH public key deployed from ${SSH_KEY_PATH}.pub"
+    else
+        log_warn "  No SSH keys configured. Skipping key deployment."
+        return
+    fi
+
+    # Harden SSH configuration
+    if [[ "${SSH_DISABLE_PASSWORD_AUTH:-false}" == "true" ]]; then
+        remote_exec "${ipv4}" "
+            mkdir -p /etc/ssh/sshd_config.d
+            cat > /etc/ssh/sshd_config.d/10-k3s-hardening.conf << 'SSHD'
+PasswordAuthentication no
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin prohibit-password
+MaxAuthTries 3
+ClientAliveInterval 300
+ClientAliveCountMax 2
+SSHD
+            systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true
+        "
+        log_success "  SSH hardened (password auth disabled)"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Configure all master nodes
 # ---------------------------------------------------------------------------
 log_info "Configuring master nodes..."
@@ -180,6 +236,35 @@ for node_entry in "${WORKER_NODES[@]}"; do
     hostname=$(parse_node "${node_entry}" "hostname")
     ipv4=$(parse_node "${node_entry}" "ipv4")
     configure_node "${hostname}" "${ipv4}" "worker"
+done
+
+# ---------------------------------------------------------------------------
+# Deploy SSH keys to all nodes
+# ---------------------------------------------------------------------------
+log_info "Deploying SSH keys..."
+echo ""
+
+# Build SSH_AUTHORIZED_KEYS from inventory if defined
+if [[ -z "${SSH_AUTHORIZED_KEYS:-}" ]]; then
+    # Try reading from SSH_KEY_PATH.pub as fallback
+    if [[ -f "${SSH_KEY_PATH}.pub" ]]; then
+        SSH_AUTHORIZED_KEYS=$(cat "${SSH_KEY_PATH}.pub")
+    fi
+fi
+
+# Default for disable password auth
+SSH_DISABLE_PASSWORD_AUTH="${SSH_DISABLE_PASSWORD_AUTH:-false}"
+
+for node_entry in "${MASTER_NODES[@]}"; do
+    hostname=$(parse_node "${node_entry}" "hostname")
+    ipv4=$(parse_node "${node_entry}" "ipv4")
+    deploy_ssh_keys "${hostname}" "${ipv4}"
+done
+
+for node_entry in "${WORKER_NODES[@]}"; do
+    hostname=$(parse_node "${node_entry}" "hostname")
+    ipv4=$(parse_node "${node_entry}" "ipv4")
+    deploy_ssh_keys "${hostname}" "${ipv4}"
 done
 
 # ---------------------------------------------------------------------------

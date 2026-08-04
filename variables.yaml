@@ -176,6 +176,14 @@ ssh:
   user: "root"
   port: 22
   key_path: "~/.ssh/id_ed25519"
+  # Public SSH keys to deploy to all nodes during installation.
+  # These keys will be added to /root/.ssh/authorized_keys on every node,
+  # enabling passwordless access from the deployment host.
+  # Supports multiple keys (one per line in the list).
+  authorized_keys:
+    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI_YOUR_PUBLIC_KEY_HERE user@deployment-host"
+  # Disable password authentication after key deployment (recommended)
+  disable_password_auth: true
 
 # -----------------------------------------------------------------------------
 # Storage & Disk Layout
