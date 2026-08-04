@@ -1,0 +1,7 @@
+# ShellCheck configuration
+# https://www.shellcheck.net/wiki/
+
+# SC1091: Not following sourced file (dynamic paths can't be resolved by shellcheck)
+# We use `source "${SCRIPT_DIR}/env.sh"` which shellcheck can't follow statically.
+# The `# shellcheck source=env.sh` directive is provided in each script for context.
+disable=SC1091

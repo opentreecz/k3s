@@ -13,6 +13,7 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=env.sh
 source "${SCRIPT_DIR}/env.sh"
 
 load_inventory
@@ -130,9 +131,6 @@ LIMITS
 
     # Install required packages via transactional-update
     # Note: This requires a reboot to take effect
-    local os_id
-    os_id=$(remote_exec "${ipv4}" "grep '^ID=' /etc/os-release | cut -d= -f2 | tr -d '\"'" 2>/dev/null || echo "unknown")
-
     remote_exec "${ipv4}" "
         # Check if packages are already installed
         if ! rpm -q open-iscsi &>/dev/null; then

@@ -47,10 +47,9 @@ die() {
 # Load inventory file
 load_inventory() {
     if [[ ! -f "${INVENTORY_FILE}" ]]; then
-        die "Inventory file not found: ${INVENTORY_FILE}"
         echo "Copy the template and edit it:"
         echo "  cp templates/inventory.example.conf inventory.conf"
-        exit 1
+        die "Inventory file not found: ${INVENTORY_FILE}"
     fi
     # shellcheck source=/dev/null
     source "${INVENTORY_FILE}"
