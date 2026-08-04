@@ -30,6 +30,8 @@ This is already handled automatically by:
 - `scripts/01-configure-os.sh` (deployment script)
 - `configs/os/microos-ignition.json` (Ignition first-boot config)
 
+When pre-generated configs are available in the `generated/` directory, the deployment scripts use the pre-rendered `os/sysctl-k3s.conf` file directly.
+
 ### IPv6 Address Stability Requirements
 
 Regardless of whether you use DHCPv6 or SLAAC, the IPv6 addresses configured in

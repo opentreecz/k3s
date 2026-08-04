@@ -85,7 +85,7 @@ All nodes use **DHCPv4 and DHCPv6** for network configuration. Static DHCP lease
 │   ├── k3s/
 │   ├── network/
 │   └── os/
-├── generated/                      # OUTPUT of generate.py (gitignored)
+├── generated/                      # OUTPUT of generate.py or Web UI ZIP (gitignored)
 │   ├── haproxy/
 │   ├── keepalived/{hostname}/
 │   ├── k3s/{hostname}/
@@ -128,6 +128,16 @@ templates/jinja2/ ─┘                        ├── haproxy/haproxy.cfg
                                             ├── network/hosts
                                             └── os/sysctl-k3s.conf
 ```
+
+There are two ways to populate the `generated/` directory:
+
+1. **`python3 generate.py`** -- renders Jinja2 templates from `variables.yaml` (see [Usage](#usage) below).
+2. **Web UI ZIP extraction** -- configure your cluster in the [Web Configuration Generator](https://opentreecz.github.io/k3s/), download the ZIP, and extract it:
+   ```bash
+   unzip k3s-config-*.zip -d generated/
+   ```
+
+Both methods produce the same directory structure. The deployment scripts (00-05) check for pre-generated configs in `generated/` first and use them directly if present; otherwise they fall back to inline generation from `inventory.conf`.
 
 ### Usage
 
@@ -183,6 +193,13 @@ shellcheck -x scripts/*.sh
    ```bash
    python3 generate.py
    ```
+
+   **Alternative:** Use the [Web Configuration Generator](https://opentreecz.github.io/k3s/)
+   to configure your cluster in the browser, download the ZIP, and extract it:
+   ```bash
+   unzip k3s-config-*.zip -d generated/
+   ```
+
 6. Run the deployment:
    ```bash
    ./scripts/00-validate-environment.sh

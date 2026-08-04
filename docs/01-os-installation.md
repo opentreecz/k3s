@@ -207,7 +207,7 @@ Best for: High-performance production. Maximum I/O isolation.
 | /var/lib/longhorn | 50 GB | 200 GB+ | Longhorn replicated volumes |
 | /opt/local-path-provisioner | 50 GB | 100 GB+ | Local-path volumes (alternative) |
 
-The disk layout is configured in `variables.yaml` under the `storage:` section and automatically generates the appropriate AutoYaST or Ignition configuration.
+The disk layout is configured in `variables.yaml` under the `storage:` section and automatically generates the appropriate AutoYaST or Ignition configuration. Alternatively, these configuration files can be obtained by extracting a ZIP archive downloaded from the [Web Configuration Generator](https://opentreecz.github.io/k3s/).
 
 ## Next Steps
 

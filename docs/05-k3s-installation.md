@@ -19,6 +19,8 @@ This guide covers bootstrapping the K3s highly-available cluster with 3 master (
 ./scripts/04-install-k3s-servers.sh
 ```
 
+Both scripts check for pre-generated K3s server configuration files in `generated/k3s/{hostname}/config.yaml`. If found (from `generate.py` or Web UI ZIP), these are deployed directly to each node. If not found, the scripts generate the configuration inline from `inventory.conf`.
+
 ## Manual Installation
 
 ### Step 1: Generate Cluster Token

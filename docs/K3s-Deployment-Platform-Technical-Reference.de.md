@@ -45,6 +45,7 @@ Die Bereitstellungsplattform deckt den gesamten Lebenszyklus der Cluster-Provisi
 - Aufnahme von Worker-Knoten
 - Bereitstellung von persistentem Speicher (Longhorn oder local-path)
 - SSH-Schlüsselverwaltung mit GitHub-Schlüsselimport
+- Einheitliche Konfigurationsverwendung: Bereitstellungsskripte nutzen vorerzeugte Konfigurationen aus `generated/` (erstellt durch `generate.py` oder Web-UI-ZIP-Extraktion), mit automatischem Fallback auf Inline-Erzeugung aus `inventory.conf`
 
 Die gesamte Konfiguration wird durch eine **einzelne Variablendatei** gesteuert und über **Jinja2-Templates** gerendert, was Konsistenz, Wiederholbarkeit und Nachvollziehbarkeit über alle Umgebungen hinweg gewährleistet.
 
@@ -112,6 +113,8 @@ Diese Plattform löst diese Herausforderungen durch einen schichtbasierten Ansat
 │   └──────────┘  └──────────┘  └──────────┘                          │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+**Konfigurationsfluss**: Das Verzeichnis `generated/` dient als Brücke zwischen der Konfigurationserzeugungsschicht und der Bereitstellungsautomatisierungsschicht. Es kann entweder durch `python3 generate.py` (aus `variables.yaml`) oder durch Extrahieren eines Web-UI-ZIP-Archivs (`unzip k3s-config-*.zip -d generated/`) befüllt werden. Wenn die Bereitstellungsskripte vorerzeugte Konfigurationen in diesem Verzeichnis finden, verwenden sie diese direkt. Wenn keine vorerzeugten Konfigurationen gefunden werden, fallen die Skripte auf die Inline-Erzeugung von Konfigurationen aus `inventory.conf` zurück.
 
 ### 2.3 Repository-Struktur
 
@@ -671,6 +674,8 @@ Der Cluster arbeitet im vollständigen Dual-Stack-Modus:
 
 Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt hängt vom erfolgreichen Abschluss des vorherigen Schritts ab.
 
+**Konfigurationsquelle**: Jedes Bereitstellungsskript prüft vor der Ausführung, ob vorerzeugte Konfigurationsdateien im Verzeichnis `generated/` vorhanden sind. Wenn welche gefunden werden (erzeugt durch `python3 generate.py` oder durch Extrahieren eines Web-UI-ZIP), werden die vorerzeugten Konfigurationen direkt auf die Knoten übertragen. Wenn das Verzeichnis `generated/` fehlt oder unvollständig ist, fallen die Skripte auf die Inline-Erzeugung von Konfigurationen aus `inventory.conf` zurück. Das Konfigurationsverzeichnis kann mit der Umgebungsvariable `CONFIG_DIR` überschrieben werden.
+
 ### Schritt 0: Umgebungsvalidierung
 
 ```bash
@@ -687,6 +692,7 @@ Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt
 5. SSH-Konnektivität zu allen Worker-Knoten
 6. Tatsächliche IP-Adressen stimmen mit erwarteten DHCP-Leases überein (verifiziert DHCP-Funktion)
 7. Betriebssystemidentifikation auf jedem Knoten
+8. Validierung des Verzeichnisses mit vorerzeugten Konfigurationen (falls `generated/` existiert)
 
 **Beendungsverhalten**: Beendet sich mit Exit-Code 1, wenn eine Prüfung fehlschlägt, und meldet alle Fehler.
 
@@ -713,6 +719,8 @@ Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt
 | SSH-Schlüssel | authorized_keys bereitstellen + sshd-Härtung |
 | GitHub-Schlüssel | Abruf von https://github.com/<user>.keys |
 
+Wenn vorerzeugte Konfigurationen in `generated/` verfügbar sind, verwendet das Skript `os/sysctl-k3s.conf`, `network/hosts`, `os/ssh-authorized-keys` und `os/sshd-hardening.conf` direkt, anstatt sie inline zu erzeugen.
+
 ### Schritt 2: HAProxy- + Keepalived-Installation
 
 ```bash
@@ -732,6 +740,8 @@ Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt
 4. VIP ist dem Knoten mit der höchsten Priorität zugewiesen — verifizieren
 5. HAProxy lauscht auf Port 6443 — verifizieren
 
+Wenn vorerzeugte Konfigurationen verfügbar sind, liest das Skript `generated/haproxy/haproxy.cfg` und `generated/keepalived/{hostname}/keepalived.conf`, anstatt sie inline zu erzeugen.
+
 ### Schritt 3: Ersten K3s-Server bootstrappen
 
 ```bash
@@ -749,6 +759,8 @@ Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt
 - Wartet, bis der Knoten den Status „Ready" erreicht
 - Speichert Token in lokaler Datei für nachfolgende Skripte
 
+Wenn vorerzeugte Konfigurationen verfügbar sind, stellt das Skript `generated/k3s/{hostname}/config.yaml` direkt bereit, anstatt die Konfiguration inline zu erstellen.
+
 ### Schritt 4: Weitere Server beitreten lassen
 
 ```bash
@@ -760,6 +772,8 @@ Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt
 **Hauptunterschied zu Schritt 3**: Verwendet `--server https://<erster-master-IP>:6443` anstelle von `--cluster-init`. Tritt über die direkte IP des ersten Masters bei (nicht die VIP), um Henne-Ei-Probleme während des Bootstraps zu vermeiden.
 
 **Nach Abschluss**: Das 3-Knoten-etcd-Quorum ist hergestellt. Der Cluster ist nun hochverfügbar.
+
+Verwendet vorerzeugte `generated/k3s/{hostname}/config.yaml`, wenn verfügbar, mit Inline-Fallback.
 
 ### Schritt 5: Worker-Knoten beitreten lassen
 
@@ -774,6 +788,8 @@ Die Bereitstellung folgt einer strikten sequenziellen Reihenfolge. Jeder Schritt
 - Verwendet `INSTALL_K3S_EXEC="agent"` (nicht "server")
 - Wendet Worker-Labels automatisch an
 - Wartet, bis jeder Knoten den Status „Ready" erreicht
+
+Verwendet vorerzeugte `generated/k3s/{hostname}/config.yaml`, wenn verfügbar, mit Inline-Fallback.
 
 ### Schritt 6: Persistenten Speicher installieren
 
@@ -824,11 +840,40 @@ Das Konfigurationserzeugungssystem folgt dem Prinzip **„Einzige Wahrheitsquell
      │ (19 Dateien)│  │ (Download) │         │
      └────────────┘  └────────────┘         │
                                             ▼
-                                    ┌────────────┐
-                                    │ Remote-SSH │
-                                    │ Ausführung │
-                                    └────────────┘
+                                     ┌────────────┐
+                                     │ Remote-SSH │
+                                     │ Ausführung │
+                                     └────────────┘
 ```
+
+### 6.5 Einheitliche Konfigurationsverwendung
+
+Die Bereitstellungsskripte verwenden nun vorerzeugte Konfigurationsdateien aus dem Verzeichnis `generated/` und schaffen so eine einheitliche Pipeline:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Konfigurationsquellen                              │
+│                                                                       │
+│   Pfad A: variables.yaml ──► generate.py ──► generated/              │
+│                                                    │                  │
+│   Pfad B: Web-UI ──► ZIP-Download ──► unzip ──► generated/           │
+│                                                    │                  │
+│   Pfad C: inventory.conf ──► inline (Fallback) ────┤                 │
+│                                                    │                  │
+└────────────────────────────────────────────────────┼──────────────────┘
+                                                     │
+                                                     ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Bereitstellungsskripte                           │
+│                                                                       │
+│   Skripte prüfen zuerst generated/, Fallback auf inventory.conf      │
+│                                                                       │
+│   00-validate ──► 01-configure-os ──► 02-haproxy ──► 03-k3s-first   │
+│   ──► 04-k3s-servers ──► 05-k3s-agents ──► 06-storage               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Überschreiben des Konfigurationsverzeichnisses mit: `CONFIG_DIR=/path/to/configs ./scripts/01-configure-os.sh`
 
 ### 6.2 Template-Engine
 
@@ -1152,6 +1197,30 @@ k3s-config-v1.0.0-20260804-143052.zip
 └── Fester Präfix
 ```
 
+### 11.4 Verwendung des ZIP mit CLI-Skripten
+
+Das Web-UI-ZIP-Archiv kann direkt mit den CLI-Bereitstellungsskripten verwendet werden:
+
+```bash
+# 1. ZIP herunterladen von https://opentreecz.github.io/k3s/
+# 2. In das Verzeichnis generated/ entpacken
+unzip k3s-config-v1.0.0-*.zip -d generated/
+
+# 3. inventory.conf mit SSH-Verbindungseinstellungen konfigurieren
+cp templates/inventory.example.conf inventory.conf
+# Bearbeiten: SSH_USER, SSH_KEY_PATH, SSH_PORT, MASTER_NODES (IPs), WORKER_NODES (IPs)
+
+# 4. Bereitstellungsskripte ausführen (sie erkennen und verwenden vorerzeugte Konfigurationen)
+./scripts/00-validate-environment.sh
+./scripts/01-configure-os.sh
+./scripts/02-install-haproxy.sh
+./scripts/03-install-k3s-first.sh
+./scripts/04-install-k3s-servers.sh
+./scripts/05-install-k3s-agents.sh
+```
+
+Die Skripte erkennen automatisch die vorerzeugten Konfigurationen in `generated/` und verwenden diese anstatt Konfigurationen inline zu erzeugen. Die Datei `inventory.conf` wird weiterhin für SSH-Verbindungsparameter (Benutzer, Schlüsselpfad, Port) und Knoten-IP-Adressen für die SSH-Konnektivität benötigt.
+
 ---
 
 ## 12. Zusammenfassung
@@ -1168,6 +1237,7 @@ Diese K3s-Baremetal-Hochverfügbarkeits-Bereitstellungsplattform bietet eine vol
 - 7 sequenzielle Skripte, die den gesamten Bereitstellungslebenszyklus abdecken
 - Konfigurationserzeugung aus einer einzelnen Variablendatei (19+ Ausgabedateien)
 - Webbasierter Generator für reinen Browserbetrieb (kein Server erforderlich)
+- Einheitliche Konfigurationsverwendung: Skripte nutzen vorerzeugte Konfigurationen aus `generated/` (über `generate.py` oder Web-UI-ZIP), mit automatischem Fallback auf Inline-Erzeugung
 - GitHub Actions CI für kontinuierliche Qualitätssicherung
 
 **Speicher**:

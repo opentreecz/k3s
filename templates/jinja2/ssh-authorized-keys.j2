@@ -1,0 +1,15 @@
+# SSH Authorized Keys for K3s Cluster Nodes
+# Generated from templates/jinja2/ssh-authorized-keys.j2
+# Deploy to /root/.ssh/authorized_keys on all nodes
+#
+{% if ssh.github_users is defined %}
+{% for user in ssh.github_users %}
+{% if user %}
+# Keys fetched at deploy time from: https://github.com/{{ user }}.keys
+{% endif %}
+{% endfor %}
+{% endif %}
+# --- Configured keys ---
+{% for key in ssh.authorized_keys %}
+{{ key }}
+{% endfor %}

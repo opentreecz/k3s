@@ -1,0 +1,15 @@
+# SSH Hardening for K3s Cluster Nodes
+# Generated from templates/jinja2/sshd-hardening.conf.j2
+# Deploy to /etc/ssh/sshd_config.d/10-k3s-hardening.conf
+{% if ssh.disable_password_auth %}
+PasswordAuthentication no
+{% else %}
+PasswordAuthentication yes
+{% endif %}
+ChallengeResponseAuthentication no
+PubkeyAuthentication yes
+PermitRootLogin prohibit-password
+MaxAuthTries 3
+ClientAliveInterval 300
+ClientAliveCountMax 2
+Port {{ ssh.port }}

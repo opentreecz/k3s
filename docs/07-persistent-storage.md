@@ -100,6 +100,8 @@ STORAGE_PROVIDER=none ./scripts/06-install-storage.sh
 The script handles prerequisites, Helm chart installation (for Longhorn),
 StorageClass creation, and verification.
 
+The script reads Longhorn Helm values from `generated/storage/longhorn-values.yaml` and local-path StorageClass manifests from `generated/storage/storageclass-local-path.yaml` if available. These files can be produced by `python3 generate.py` or by extracting a [Web UI](https://opentreecz.github.io/k3s/) ZIP.
+
 ---
 
 ## Longhorn Deep-Dive

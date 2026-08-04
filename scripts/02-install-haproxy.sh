@@ -139,9 +139,25 @@ generate_keepalived_cfg() {
 }
 
 # ---------------------------------------------------------------------------
+# Determine configuration source
+# ---------------------------------------------------------------------------
+if use_generated_configs && config_file_exists "haproxy/haproxy.cfg"; then
+    log_info "Using pre-generated configs from ${CONFIG_DIR}"
+    CONFIG_SOURCE="generated"
+else
+    log_info "No pre-generated configs found. Generating inline from inventory."
+    CONFIG_SOURCE="inline"
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
 # Install and configure on each master node
 # ---------------------------------------------------------------------------
-HAPROXY_CFG=$(generate_haproxy_cfg)
+if [[ "${CONFIG_SOURCE}" == "generated" ]]; then
+    HAPROXY_CFG=$(load_config_file "haproxy/haproxy.cfg")
+else
+    HAPROXY_CFG=$(generate_haproxy_cfg)
+fi
 
 node_index=0
 for node_entry in "${MASTER_NODES[@]}"; do
@@ -162,13 +178,22 @@ for node_entry in "${MASTER_NODES[@]}"; do
 
     # Deploy HAProxy config
     remote_exec "${ipv4}" "mkdir -p /etc/haproxy"
-    echo -e "${HAPROXY_CFG}" | remote_exec "${ipv4}" "cat > /etc/haproxy/haproxy.cfg"
+    if [[ "${CONFIG_SOURCE}" == "generated" ]]; then
+        echo "${HAPROXY_CFG}" | remote_exec "${ipv4}" "cat > /etc/haproxy/haproxy.cfg"
+    else
+        echo -e "${HAPROXY_CFG}" | remote_exec "${ipv4}" "cat > /etc/haproxy/haproxy.cfg"
+    fi
     log_success "  HAProxy config deployed"
 
     # Deploy Keepalived config
-    KEEPALIVED_CFG=$(generate_keepalived_cfg ${node_index})
     remote_exec "${ipv4}" "mkdir -p /etc/keepalived"
-    echo -e "${KEEPALIVED_CFG}" | remote_exec "${ipv4}" "cat > /etc/keepalived/keepalived.conf"
+    if [[ "${CONFIG_SOURCE}" == "generated" ]] && config_file_exists "keepalived/${hostname}/keepalived.conf"; then
+        KEEPALIVED_CFG=$(load_config_file "keepalived/${hostname}/keepalived.conf")
+        echo "${KEEPALIVED_CFG}" | remote_exec "${ipv4}" "cat > /etc/keepalived/keepalived.conf"
+    else
+        KEEPALIVED_CFG=$(generate_keepalived_cfg ${node_index})
+        echo -e "${KEEPALIVED_CFG}" | remote_exec "${ipv4}" "cat > /etc/keepalived/keepalived.conf"
+    fi
     log_success "  Keepalived config deployed (priority: $((101 - node_index)))"
 
     # Enable and start services

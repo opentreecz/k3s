@@ -23,8 +23,25 @@ echo " K3s Cluster - OS Configuration"
 echo "============================================================"
 echo ""
 
-# Generate hosts entries
-HOSTS_ENTRIES=$(generate_hosts_entries)
+# ---------------------------------------------------------------------------
+# Determine configuration source
+# ---------------------------------------------------------------------------
+if use_generated_configs; then
+    log_info "Using pre-generated configs from ${CONFIG_DIR}"
+    CONFIG_SOURCE="generated"
+else
+    log_info "No pre-generated configs found. Using inline generation from inventory."
+    CONFIG_SOURCE="inline"
+fi
+echo ""
+
+# Generate hosts entries (fallback or from generated)
+if [[ "${CONFIG_SOURCE}" == "generated" ]] && config_file_exists "network/hosts"; then
+    HOSTS_ENTRIES=$(load_config_file "network/hosts")
+    log_info "Loaded /etc/hosts entries from ${CONFIG_DIR}/network/hosts"
+else
+    HOSTS_ENTRIES=$(generate_hosts_entries)
+fi
 
 # ---------------------------------------------------------------------------
 # Configure a single node
@@ -52,8 +69,14 @@ configure_node() {
     log_success "  /etc/hosts configured"
 
     # Kernel parameters
-    remote_exec "${ipv4}" "
-        cat > /etc/sysctl.d/90-k3s.conf << 'SYSCTL'
+    if [[ "${CONFIG_SOURCE}" == "generated" ]] && config_file_exists "os/sysctl-k3s.conf"; then
+        local sysctl_content
+        sysctl_content=$(load_config_file "os/sysctl-k3s.conf")
+        echo "${sysctl_content}" | remote_exec "${ipv4}" "cat > /etc/sysctl.d/90-k3s.conf"
+        remote_exec "${ipv4}" "sysctl --system >/dev/null 2>&1"
+    else
+        remote_exec "${ipv4}" "
+            cat > /etc/sysctl.d/90-k3s.conf << 'SYSCTL'
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
 net.ipv6.conf.all.accept_ra = 2
@@ -65,8 +88,9 @@ fs.inotify.max_user_instances = 524288
 fs.inotify.max_user_watches = 524288
 net.netfilter.nf_conntrack_max = 131072
 SYSCTL
-        sysctl --system >/dev/null 2>&1
-    "
+            sysctl --system >/dev/null 2>&1
+        "
+    fi
     log_success "  Kernel parameters configured"
 
     # Kernel modules
@@ -196,7 +220,16 @@ AUTHKEYS
     fi
 
     # Harden SSH configuration
-    if [[ "${SSH_DISABLE_PASSWORD_AUTH:-false}" == "true" ]]; then
+    if [[ "${CONFIG_SOURCE}" == "generated" ]] && config_file_exists "os/sshd-hardening.conf"; then
+        local sshd_content
+        sshd_content=$(load_config_file "os/sshd-hardening.conf")
+        # Strip comment lines from the generated sshd config
+        sshd_content=$(echo "${sshd_content}" | grep -v '^#' | grep -v '^$' || true)
+        remote_exec "${ipv4}" "mkdir -p /etc/ssh/sshd_config.d"
+        echo "${sshd_content}" | remote_exec "${ipv4}" "cat > /etc/ssh/sshd_config.d/10-k3s-hardening.conf"
+        remote_exec "${ipv4}" "systemctl reload sshd 2>/dev/null || systemctl reload ssh 2>/dev/null || true"
+        log_success "  SSH hardened (from pre-generated config)"
+    elif [[ "${SSH_DISABLE_PASSWORD_AUTH:-false}" == "true" ]]; then
         remote_exec "${ipv4}" "
             mkdir -p /etc/ssh/sshd_config.d
             cat > /etc/ssh/sshd_config.d/10-k3s-hardening.conf << 'SSHD'
@@ -244,32 +277,39 @@ done
 log_info "Deploying SSH keys..."
 echo ""
 
-# Build SSH_AUTHORIZED_KEYS from inventory if defined
-if [[ -z "${SSH_AUTHORIZED_KEYS:-}" ]]; then
-    # Try reading from SSH_KEY_PATH.pub as fallback
-    if [[ -f "${SSH_KEY_PATH}.pub" ]]; then
-        SSH_AUTHORIZED_KEYS=$(cat "${SSH_KEY_PATH}.pub")
+# Load SSH authorized keys from pre-generated config or build from inventory
+if [[ "${CONFIG_SOURCE}" == "generated" ]] && config_file_exists "os/ssh-authorized-keys"; then
+    # Strip comment lines from the generated authorized_keys file
+    SSH_AUTHORIZED_KEYS=$(grep -v '^#' "${CONFIG_DIR}/os/ssh-authorized-keys" | grep -v '^$' || true)
+    log_info "Loaded SSH authorized keys from ${CONFIG_DIR}/os/ssh-authorized-keys"
+else
+    # Build SSH_AUTHORIZED_KEYS from inventory if defined
+    if [[ -z "${SSH_AUTHORIZED_KEYS:-}" ]]; then
+        # Try reading from SSH_KEY_PATH.pub as fallback
+        if [[ -f "${SSH_KEY_PATH}.pub" ]]; then
+            SSH_AUTHORIZED_KEYS=$(cat "${SSH_KEY_PATH}.pub")
+        fi
     fi
-fi
 
-# Fetch SSH keys from GitHub users if configured
-if [[ -n "${SSH_GITHUB_USERS:-}" ]]; then
-    log_info "Fetching SSH keys from GitHub..."
-    for github_user in ${SSH_GITHUB_USERS}; do
-        if [[ -z "${github_user}" ]]; then
-            continue
-        fi
-        log_info "  Fetching keys for github.com/${github_user}..."
-        github_keys=$(curl -sfL "https://github.com/${github_user}.keys" 2>/dev/null || echo "")
-        if [[ -n "${github_keys}" ]]; then
-            SSH_AUTHORIZED_KEYS="${SSH_AUTHORIZED_KEYS:-}
+    # Fetch SSH keys from GitHub users if configured
+    if [[ -n "${SSH_GITHUB_USERS:-}" ]]; then
+        log_info "Fetching SSH keys from GitHub..."
+        for github_user in ${SSH_GITHUB_USERS}; do
+            if [[ -z "${github_user}" ]]; then
+                continue
+            fi
+            log_info "  Fetching keys for github.com/${github_user}..."
+            github_keys=$(curl -sfL "https://github.com/${github_user}.keys" 2>/dev/null || echo "")
+            if [[ -n "${github_keys}" ]]; then
+                SSH_AUTHORIZED_KEYS="${SSH_AUTHORIZED_KEYS:-}
 ${github_keys}"
-            log_success "  Fetched $(echo "${github_keys}" | wc -l) key(s) for ${github_user}"
-        else
-            log_warn "  No keys found for ${github_user} (or user does not exist)"
-        fi
-    done
-    echo ""
+                log_success "  Fetched $(echo "${github_keys}" | wc -l) key(s) for ${github_user}"
+            else
+                log_warn "  No keys found for ${github_user} (or user does not exist)"
+            fi
+        done
+        echo ""
+    fi
 fi
 
 # Default for disable password auth

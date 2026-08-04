@@ -8,6 +8,7 @@ Post-installation configuration for all nodes before K3s deployment.
 - SSH access to all nodes
 - DHCP leases active (nodes have their expected IPs)
 - Inventory file configured (`inventory.conf`)
+- Pre-generated configs available in `generated/` (optional; from `generate.py` or [Web UI](https://opentreecz.github.io/k3s/) ZIP)
 
 ## Automated Configuration
 
@@ -18,6 +19,8 @@ Run the OS configuration script from the deployment host:
 ```
 
 This script performs all steps described below automatically.
+
+The script checks for pre-generated configuration files in the `generated/` directory. If found (from `generate.py` or a Web UI ZIP extraction), it uses them directly for sysctl, hosts, and SSH configs. Otherwise, it falls back to inline generation from `inventory.conf`.
 
 ## Manual Configuration Steps
 

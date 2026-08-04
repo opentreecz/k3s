@@ -16,6 +16,8 @@ Worker nodes (agents) run workloads but do not participate in the control plane 
 ./scripts/05-install-k3s-agents.sh
 ```
 
+The script deploys pre-generated agent configs from `generated/k3s/{hostname}/config.yaml` if available, falling back to inline generation from `inventory.conf`.
+
 ## Manual Installation
 
 ### Step 1: Retrieve the Cluster Token
@@ -104,6 +106,8 @@ To add additional workers at any time:
 
 ```bash
 # Add the new node to inventory.conf WORKER_NODES array, then:
+# If using the Web UI workflow, regenerate and re-download the ZIP to include
+# the new worker, then extract it into generated/
 ./scripts/05-install-k3s-agents.sh
 
 # Or manually:

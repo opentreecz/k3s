@@ -18,6 +18,8 @@ HAProxy and Keepalived run on all three master nodes. If the primary master fail
 ./scripts/02-install-haproxy.sh
 ```
 
+The script uses pre-generated HAProxy and Keepalived configuration files from `generated/haproxy/haproxy.cfg` and `generated/keepalived/{hostname}/keepalived.conf` if available. These can be produced by `python3 generate.py` or by extracting a [Web UI](https://opentreecz.github.io/k3s/) ZIP into `generated/`. If no pre-generated configs are found, the script generates them inline from `inventory.conf`.
+
 ## Manual Installation
 
 ### Install Packages

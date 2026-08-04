@@ -12,6 +12,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 INVENTORY_FILE="${PROJECT_DIR}/inventory.conf"
 
+# Pre-generated configuration directory.
+# Can be populated by:
+#   1. python3 generate.py                        (from variables.yaml)
+#   2. Extracting a Web UI ZIP into generated/     (from opentreecz.github.io/k3s)
+# Override with: CONFIG_DIR=/path/to/configs ./scripts/01-configure-os.sh
+CONFIG_DIR="${CONFIG_DIR:-${PROJECT_DIR}/generated}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -130,6 +137,28 @@ ensure_k3s_token() {
         log_info "Generated K3s token: ${K3S_TOKEN}"
         log_warn "Save this token! You will need it to add nodes later."
     fi
+}
+
+# Check if pre-generated configs are available in CONFIG_DIR.
+# Returns 0 (true) if the directory exists and contains at least haproxy.cfg.
+use_generated_configs() {
+    [[ -d "${CONFIG_DIR}" ]] && [[ -f "${CONFIG_DIR}/haproxy/haproxy.cfg" ]]
+}
+
+# Read a file from CONFIG_DIR. Dies if the file does not exist.
+load_config_file() {
+    local relpath="$1"
+    local filepath="${CONFIG_DIR}/${relpath}"
+    if [[ ! -f "${filepath}" ]]; then
+        die "Generated config file not found: ${filepath}"
+    fi
+    cat "${filepath}"
+}
+
+# Check if a specific generated config file exists.
+config_file_exists() {
+    local relpath="$1"
+    [[ -f "${CONFIG_DIR}/${relpath}" ]]
 }
 
 # Generate /etc/hosts content for all nodes

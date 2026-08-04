@@ -130,10 +130,17 @@ RENDER_TARGETS: list[dict[str, Any]] = [
         "per_node": False,
         "group": "os",
     },
-    # SSH configuration (authorized_keys + sshd hardening)
+    # SSH authorized keys
     {
-        "template": "ssh-config.j2",
-        "output": "os/ssh-config.txt",
+        "template": "ssh-authorized-keys.j2",
+        "output": "os/ssh-authorized-keys",
+        "per_node": False,
+        "group": "os",
+    },
+    # SSH hardening (sshd_config)
+    {
+        "template": "sshd-hardening.conf.j2",
+        "output": "os/sshd-hardening.conf",
         "per_node": False,
         "group": "os",
     },

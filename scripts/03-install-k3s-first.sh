@@ -29,54 +29,59 @@ log_info "Bootstrapping K3s on ${FIRST_HOSTNAME} (${FIRST_IPV4})..."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Build TLS SANs
-# ---------------------------------------------------------------------------
-TLS_SANS="${K3S_VIP_IPV4},${K3S_VIP_IPV6},k3s-api.${CLUSTER_DOMAIN}"
-for node_entry in "${MASTER_NODES[@]}"; do
-    hostname=$(parse_node "${node_entry}" "hostname")
-    ipv4=$(parse_node "${node_entry}" "ipv4")
-    TLS_SANS+=",${hostname}.${CLUSTER_DOMAIN},${hostname},${ipv4}"
-done
-
-# ---------------------------------------------------------------------------
 # Create K3s config file on first server
 # ---------------------------------------------------------------------------
 log_info "Deploying K3s server configuration..."
 
 remote_exec "${FIRST_IPV4}" "mkdir -p /etc/rancher/k3s"
 
-# Build config.yaml
-K3S_CONFIG="cluster-init: true
+if use_generated_configs && config_file_exists "k3s/${FIRST_HOSTNAME}/config.yaml"; then
+    log_info "  Using pre-generated config from ${CONFIG_DIR}/k3s/${FIRST_HOSTNAME}/config.yaml"
+    K3S_CONFIG=$(load_config_file "k3s/${FIRST_HOSTNAME}/config.yaml")
+    echo "${K3S_CONFIG}" | remote_exec "${FIRST_IPV4}" "cat > /etc/rancher/k3s/config.yaml"
+else
+    log_info "  Generating K3s config inline from inventory..."
+    # Build TLS SANs
+    TLS_SANS="${K3S_VIP_IPV4},${K3S_VIP_IPV6},k3s-api.${CLUSTER_DOMAIN}"
+    for node_entry in "${MASTER_NODES[@]}"; do
+        hostname=$(parse_node "${node_entry}" "hostname")
+        ipv4=$(parse_node "${node_entry}" "ipv4")
+        TLS_SANS+=",${hostname}.${CLUSTER_DOMAIN},${hostname},${ipv4}"
+    done
+
+    # Build config.yaml
+    K3S_CONFIG="cluster-init: true
 token: \"${K3S_TOKEN}\"
 tls-san:"
 
-# Add all TLS SANs
-IFS=',' read -ra SAN_ARRAY <<< "${TLS_SANS}"
-for san in "${SAN_ARRAY[@]}"; do
-    K3S_CONFIG+="
+    # Add all TLS SANs
+    IFS=',' read -ra SAN_ARRAY <<< "${TLS_SANS}"
+    for san in "${SAN_ARRAY[@]}"; do
+        K3S_CONFIG+="
   - \"${san}\""
-done
+    done
 
-K3S_CONFIG+="
+    K3S_CONFIG+="
 node-ip: \"${FIRST_IPV4},${FIRST_IPV6}\"
 advertise-address: \"${FIRST_IPV4}\"
 cluster-cidr: \"${K3S_CLUSTER_CIDR},${K3S_CLUSTER_CIDR_V6}\"
 service-cidr: \"${K3S_SERVICE_CIDR},${K3S_SERVICE_CIDR_V6}\"
 disable:"
 
-IFS=',' read -ra DISABLE_ARRAY <<< "${K3S_DISABLE}"
-for component in "${DISABLE_ARRAY[@]}"; do
-    K3S_CONFIG+="
+    IFS=',' read -ra DISABLE_ARRAY <<< "${K3S_DISABLE}"
+    for component in "${DISABLE_ARRAY[@]}"; do
+        K3S_CONFIG+="
   - \"${component}\""
-done
+    done
 
-K3S_CONFIG+="
+    K3S_CONFIG+="
 write-kubeconfig-mode: \"0644\"
 etcd-expose-metrics: true
 kube-apiserver-arg:
   - \"advertise-address=${FIRST_IPV4}\""
 
-echo "${K3S_CONFIG}" | remote_exec "${FIRST_IPV4}" "cat > /etc/rancher/k3s/config.yaml"
+    echo "${K3S_CONFIG}" | remote_exec "${FIRST_IPV4}" "cat > /etc/rancher/k3s/config.yaml"
+fi
 log_success "  Config written to /etc/rancher/k3s/config.yaml"
 
 # ---------------------------------------------------------------------------

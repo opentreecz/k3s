@@ -60,11 +60,17 @@ for node_entry in "${WORKER_NODES[@]}"; do
     # Create K3s agent config
     remote_exec "${ipv4}" "mkdir -p /etc/rancher/k3s"
 
-    AGENT_CONFIG="server: \"https://${K3S_VIP_IPV4}:${HAPROXY_FRONTEND_PORT}\"
+    if use_generated_configs && config_file_exists "k3s/${hostname}/config.yaml"; then
+        log_info "  Using pre-generated config from ${CONFIG_DIR}/k3s/${hostname}/config.yaml"
+        AGENT_CONFIG=$(load_config_file "k3s/${hostname}/config.yaml")
+    else
+        log_info "  Generating agent config inline from inventory..."
+        AGENT_CONFIG="server: \"https://${K3S_VIP_IPV4}:${HAPROXY_FRONTEND_PORT}\"
 token: \"${K3S_TOKEN}\"
 node-ip: \"${ipv4},${ipv6}\"
 node-label:
   - \"node-role.kubernetes.io/worker=worker\""
+    fi
 
     echo "${AGENT_CONFIG}" | remote_exec "${ipv4}" "cat > /etc/rancher/k3s/config.yaml"
     log_success "  Agent config deployed"

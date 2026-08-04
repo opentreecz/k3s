@@ -24,6 +24,55 @@ echo ""
 ERRORS=0
 
 # ---------------------------------------------------------------------------
+# Check pre-generated configuration directory
+# ---------------------------------------------------------------------------
+log_info "Checking pre-generated configuration directory..."
+
+if use_generated_configs; then
+    log_success "  Config directory found: ${CONFIG_DIR}"
+
+    # Validate expected files exist for each master
+    for node_entry in "${MASTER_NODES[@]}"; do
+        hostname=$(parse_node "${node_entry}" "hostname")
+        for cfg in "keepalived/${hostname}/keepalived.conf" "k3s/${hostname}/config.yaml"; do
+            if config_file_exists "${cfg}"; then
+                log_success "  ${cfg} present"
+            else
+                log_error "  ${cfg} MISSING"
+                ((ERRORS++))
+            fi
+        done
+    done
+
+    # Validate expected files exist for each worker
+    for node_entry in "${WORKER_NODES[@]}"; do
+        hostname=$(parse_node "${node_entry}" "hostname")
+        if config_file_exists "k3s/${hostname}/config.yaml"; then
+            log_success "  k3s/${hostname}/config.yaml present"
+        else
+            log_error "  k3s/${hostname}/config.yaml MISSING"
+            ((ERRORS++))
+        fi
+    done
+
+    # Validate global config files
+    for cfg in "haproxy/haproxy.cfg" "os/sysctl-k3s.conf" "network/hosts"; do
+        if config_file_exists "${cfg}"; then
+            log_success "  ${cfg} present"
+        else
+            log_warn "  ${cfg} missing (will fall back to inline generation)"
+        fi
+    done
+else
+    log_warn "  No pre-generated configs found at ${CONFIG_DIR}"
+    log_warn "  Scripts will generate configurations inline from inventory.conf"
+    log_info "  To use pre-generated configs, run 'python3 generate.py' or"
+    log_info "  extract a Web UI ZIP into the generated/ directory."
+fi
+
+echo ""
+
+# ---------------------------------------------------------------------------
 # Check local dependencies
 # ---------------------------------------------------------------------------
 log_info "Checking local tools..."

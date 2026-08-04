@@ -64,6 +64,7 @@
 <li>Worker node enrollment</li>
 <li>Persistent storage provisioning (Longhorn or local-path)</li>
 <li>SSH key management with GitHub key import</li>
+<li>Unified configuration consumption: deployment scripts use pre-generated configs from <code>generated/</code> (produced by <code>generate.py</code> or Web UI ZIP extraction), with automatic fallback to inline generation from <code>inventory.conf</code></li>
 </ul>
 <p>All configuration is driven by a <strong>single variables file</strong> and rendered through <strong>Jinja2 templates</strong>, ensuring consistency, repeatability, and auditability across environments.</p>
 <hr />
@@ -124,6 +125,7 @@
 │   └──────────┘  └──────────┘  └──────────┘                          │
 └─────────────────────────────────────────────────────────────────────┘
 </code></pre>
+<p><strong>Configuration Flow</strong>: The <code>generated/</code> directory serves as the bridge between the configuration generation layer and the deployment automation layer. It can be populated by either <code>python3 generate.py</code> (from <code>variables.yaml</code>) or by extracting a Web UI ZIP archive (<code>unzip k3s-config-*.zip -d generated/</code>). When deployment scripts find pre-generated configs in this directory, they use them directly. When no pre-generated configs are found, scripts fall back to generating configurations inline from <code>inventory.conf</code>.</p>
 <h3 id="23-repository-structure">2.3 Repository Structure</h3>
 <pre><code>k3s/
 ├── variables.yaml                  # Single source of truth
@@ -756,6 +758,7 @@ Solution:
 <hr />
 <h2 id="5-deployment-workflow">5. Deployment Workflow</h2>
 <p>The deployment follows a strict sequential order. Each step depends on the successful completion of the previous step.</p>
+<p><strong>Configuration Source</strong>: Each deployment script checks for pre-generated configuration files in the <code>generated/</code> directory before running. If found (produced by <code>python3 generate.py</code> or by extracting a Web UI ZIP), the pre-generated configs are deployed directly to nodes. If the <code>generated/</code> directory is absent or incomplete, scripts fall back to generating configurations inline from <code>inventory.conf</code>. The configuration directory can be overridden with the <code>CONFIG_DIR</code> environment variable.</p>
 <h3 id="step-0-environment-validation">Step 0: Environment Validation</h3>
 <pre><code class="language-bash">./scripts/00-validate-environment.sh
 </code></pre>
@@ -767,7 +770,8 @@ Solution:
 4. SSH connectivity to all master nodes (timeout: 10s each)
 5. SSH connectivity to all worker nodes
 6. Actual IP addresses match expected DHCP leases (verifies DHCP is working)
-7. Operating system identification on each node</p>
+7. Operating system identification on each node
+8. Pre-generated config directory validation (if <code>generated/</code> exists)</p>
 <p><strong>Exit behavior</strong>: Exits with code 1 if any check fails, reporting all failures.</p>
 <h3 id="step-1-operating-system-configuration">Step 1: Operating System Configuration</h3>
 <pre><code class="language-bash">./scripts/01-configure-os.sh
@@ -824,6 +828,7 @@ Solution:
 </tr>
 </tbody>
 </table>
+<p>When pre-generated configs are available in <code>generated/</code>, the script uses <code>os/sysctl-k3s.conf</code>, <code>network/hosts</code>, <code>os/ssh-authorized-keys</code>, and <code>os/sshd-hardening.conf</code> directly instead of generating them inline.</p>
 <h3 id="step-2-haproxy-keepalived-installation">Step 2: HAProxy + Keepalived Installation</h3>
 <pre><code class="language-bash">./scripts/02-install-haproxy.sh
 </code></pre>
@@ -838,6 +843,7 @@ Solution:
    - Enable and start services
 4. Verify VIP is assigned to the highest-priority node
 5. Verify HAProxy is listening on port 6443</p>
+<p>When pre-generated configs are available, the script reads <code>generated/haproxy/haproxy.cfg</code> and <code>generated/keepalived/{hostname}/keepalived.conf</code> instead of generating them inline.</p>
 <h3 id="step-3-bootstrap-first-k3s-server">Step 3: Bootstrap First K3s Server</h3>
 <pre><code class="language-bash">./scripts/03-install-k3s-first.sh
 </code></pre>
@@ -850,12 +856,14 @@ Solution:
 - Disables default Traefik and ServiceLB
 - Waits for node to reach Ready state
 - Saves token to local file for subsequent scripts</p>
+<p>When pre-generated configs are available, the script deploys <code>generated/k3s/{hostname}/config.yaml</code> directly instead of building the configuration inline.</p>
 <h3 id="step-4-join-additional-servers">Step 4: Join Additional Servers</h3>
 <pre><code class="language-bash">./scripts/04-install-k3s-servers.sh
 </code></pre>
 <p><strong>Purpose</strong>: Joins master-02 and master-03 to the cluster.</p>
 <p><strong>Key difference from Step 3</strong>: Uses <code>--server https://&lt;first-master-IP&gt;:6443</code> instead of <code>--cluster-init</code>. Joins via the first master's direct IP (not VIP) to avoid chicken-and-egg issues during bootstrap.</p>
 <p><strong>After completion</strong>: 3-node etcd quorum is established. The cluster is now HA.</p>
+<p>Uses pre-generated <code>generated/k3s/{hostname}/config.yaml</code> when available, with inline fallback.</p>
 <h3 id="step-5-join-worker-nodes">Step 5: Join Worker Nodes</h3>
 <pre><code class="language-bash">./scripts/05-install-k3s-agents.sh
 </code></pre>
@@ -865,6 +873,7 @@ Solution:
 - Uses <code>INSTALL_K3S_EXEC="agent"</code> (not "server")
 - Applies worker labels automatically
 - Waits for each node to reach Ready state</p>
+<p>Uses pre-generated <code>generated/k3s/{hostname}/config.yaml</code> when available, with inline fallback.</p>
 <h3 id="step-6-install-persistent-storage">Step 6: Install Persistent Storage</h3>
 <pre><code class="language-bash">STORAGE_PROVIDER=longhorn ./scripts/06-install-storage.sh
 </code></pre>
@@ -903,11 +912,35 @@ Solution:
      │ (19 files) │  │ (download) │         │
      └────────────┘  └────────────┘         │
                                             ▼
-                                    ┌────────────┐
-                                    │ Remote SSH │
-                                    │ execution  │
-                                    └────────────┘
+                                     ┌────────────┐
+                                     │ Remote SSH │
+                                     │ execution  │
+                                     └────────────┘
 </code></pre>
+<h3 id="65-unified-configuration-consumption">6.5 Unified Configuration Consumption</h3>
+<p>The deployment scripts now consume pre-generated configuration files from the <code>generated/</code> directory, creating a unified pipeline:</p>
+<pre><code>┌─────────────────────────────────────────────────────────────────────┐
+│                    Configuration Sources                             │
+│                                                                       │
+│   Path A: variables.yaml ──► generate.py ──► generated/              │
+│                                                    │                  │
+│   Path B: Web UI ──► ZIP download ──► unzip ──► generated/           │
+│                                                    │                  │
+│   Path C: inventory.conf ──► inline (fallback) ────┤                 │
+│                                                    │                  │
+└────────────────────────────────────────────────────┼──────────────────┘
+                                                     │
+                                                     ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Deployment Scripts                               │
+│                                                                       │
+│   Scripts check generated/ first, fall back to inventory.conf        │
+│                                                                       │
+│   00-validate ──► 01-configure-os ──► 02-haproxy ──► 03-k3s-first   │
+│   ──► 04-k3s-servers ──► 05-k3s-agents ──► 06-storage               │
+└─────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<p>Override the configuration directory with: <code>CONFIG_DIR=/path/to/configs ./scripts/01-configure-os.sh</code></p>
 <h3 id="62-template-engine">6.2 Template Engine</h3>
 <p><strong>Server-side (Python)</strong>: Uses Jinja2 3.1+ with <code>StrictUndefined</code> — any missing variable causes an immediate error rather than silent empty output.</p>
 <p><strong>Client-side (Browser)</strong>: Uses Nunjucks 3.2.4, a JavaScript port of Jinja2, enabling identical template syntax in the web UI.</p>
@@ -1385,6 +1418,25 @@ reclaimPolicy: Delete
 │           └── Application version
 └── Fixed prefix
 </code></pre>
+<h3 id="114-using-the-zip-with-cli-scripts">11.4 Using the ZIP with CLI Scripts</h3>
+<p>The Web UI ZIP archive can be used directly with the CLI deployment scripts:</p>
+<pre><code class="language-bash"># 1. Download the ZIP from https://opentreecz.github.io/k3s/
+# 2. Extract into the generated/ directory
+unzip k3s-config-v1.0.0-*.zip -d generated/
+
+# 3. Configure inventory.conf with SSH connection settings
+cp templates/inventory.example.conf inventory.conf
+# Edit: SSH_USER, SSH_KEY_PATH, SSH_PORT, MASTER_NODES (IPs), WORKER_NODES (IPs)
+
+# 4. Run deployment scripts (they will detect and use pre-generated configs)
+./scripts/00-validate-environment.sh
+./scripts/01-configure-os.sh
+./scripts/02-install-haproxy.sh
+./scripts/03-install-k3s-first.sh
+./scripts/04-install-k3s-servers.sh
+./scripts/05-install-k3s-agents.sh
+</code></pre>
+<p>The scripts automatically detect the pre-generated configs in <code>generated/</code> and use them instead of generating configurations inline. The <code>inventory.conf</code> file is still required for SSH connection parameters (user, key path, port) and node IP addresses used for SSH connectivity.</p>
 <hr />
 <h2 id="12-summary">12. Summary</h2>
 <p>This K3s Baremetal High-Availability Deployment Platform provides a complete, production-ready solution for deploying Kubernetes on physical servers. The key characteristics are:</p>
@@ -1397,6 +1449,7 @@ reclaimPolicy: Delete
 - 7 sequential scripts covering the full deployment lifecycle
 - Configuration generation from a single variables file (19+ output files)
 - Web-based generator for browser-only operation (no server required)
+- Unified config consumption: scripts use pre-generated configs from <code>generated/</code> (via <code>generate.py</code> or Web UI ZIP), with automatic fallback to inline generation
 - GitHub Actions CI for continuous quality assurance</p>
 <p><strong>Storage</strong>:
 - Longhorn distributed replicated storage (production-grade, snapshots, backups)
