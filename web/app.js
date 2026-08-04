@@ -30,6 +30,16 @@
         document.getElementById("add-worker").addEventListener("click", addWorkerNode);
         document.getElementById("os-distribution").addEventListener("change", toggleSleFields);
 
+        // Disk layout radio buttons
+        document.querySelectorAll('input[name="disk_layout"]').forEach(function (radio) {
+            radio.addEventListener("change", toggleDiskFields);
+        });
+
+        // Storage provider radio buttons
+        document.querySelectorAll('input[name="storage_provider"]').forEach(function (radio) {
+            radio.addEventListener("change", toggleStorageFields);
+        });
+
         // Worker remove buttons
         document.addEventListener("click", function (e) {
             if (e.target.classList.contains("btn-remove-worker")) {
@@ -48,6 +58,28 @@
         sleFields.forEach(function (el) {
             el.style.display = isSle ? "block" : "none";
         });
+    }
+
+    function toggleDiskFields() {
+        var layout = document.querySelector('input[name="disk_layout"]:checked').value;
+        var multipartFields = document.querySelectorAll(".disk-multipart-fields");
+        var multidiskFields = document.querySelectorAll(".disk-multidisk-fields");
+
+        multipartFields.forEach(function (el) {
+            el.style.display = (layout === "single-disk-multipart") ? "grid" : "none";
+        });
+        multidiskFields.forEach(function (el) {
+            el.style.display = (layout === "multi-disk") ? "grid" : "none";
+        });
+    }
+
+    function toggleStorageFields() {
+        var provider = document.querySelector('input[name="storage_provider"]:checked').value;
+        var longhornFields = document.getElementById("longhorn-fields");
+        var localPathFields = document.getElementById("local-path-fields");
+
+        longhornFields.style.display = (provider === "longhorn") ? "block" : "none";
+        localPathFields.style.display = (provider === "local-path") ? "block" : "none";
     }
 
     function addWorkerNode() {
@@ -183,6 +215,27 @@
             dhcp: {
                 default_lease_time: parseInt(form.querySelector('[name="dhcp_default_lease_time"]').value),
                 max_lease_time: parseInt(form.querySelector('[name="dhcp_max_lease_time"]').value)
+            },
+            storage: {
+                disk_layout: document.querySelector('input[name="disk_layout"]:checked').value,
+                os_disk: form.querySelector('[name="os_disk"]').value,
+                os_root_size: form.querySelector('[name="os_root_size"]').value,
+                rancher_size: form.querySelector('[name="rancher_size"]').value,
+                data_disk: form.querySelector('[name="data_disk"]').value,
+                storage_disk: form.querySelector('[name="storage_disk"]').value,
+                storage_size: form.querySelector('[name="storage_size"]').value,
+                provider: document.querySelector('input[name="storage_provider"]:checked').value,
+                longhorn: {
+                    version: form.querySelector('[name="longhorn_version"]').value || "",
+                    replica_count: parseInt(form.querySelector('[name="longhorn_replica_count"]').value),
+                    data_path: form.querySelector('[name="longhorn_data_path"]').value,
+                    default_class: form.querySelector('[name="longhorn_default_class"]').value === "true",
+                    ui_enabled: form.querySelector('[name="longhorn_ui_enabled"]').value === "true"
+                },
+                local_path: {
+                    data_path: form.querySelector('[name="local_path_data_path"]').value,
+                    default_class: form.querySelector('[name="local_path_default_class"]').value === "true"
+                }
             }
         };
     }
@@ -239,6 +292,31 @@
             var k3sPath = "k3s/" + worker.hostname + "/config.yaml";
             files[k3sPath] = env.renderString(TEMPLATES["k3s-agent.yaml"], nodeContext);
         });
+
+        // Disk partitioning (select template based on layout)
+        var diskLayoutMap = {
+            "single-root": "os/disk-single-root.xml",
+            "single-disk-multipart": "os/disk-multipart.xml",
+            "multi-disk": "os/disk-multidisk.xml"
+        };
+        var diskTemplateName = diskLayoutMap[context.storage.disk_layout] || "os/disk-multipart.xml";
+        var diskTmpl = TEMPLATES[diskTemplateName];
+        if (diskTmpl) {
+            files["os/disk-partitioning.xml"] = env.renderString(diskTmpl, context);
+        }
+
+        // Disk Ignition config
+        if (TEMPLATES["os/disk-ignition.json"]) {
+            files["os/disk-ignition.json"] = env.renderString(TEMPLATES["os/disk-ignition.json"], context);
+        }
+
+        // Storage provider configs
+        if (context.storage.provider === "longhorn" && TEMPLATES["storage/longhorn-values.yaml"]) {
+            files["storage/longhorn-values.yaml"] = env.renderString(TEMPLATES["storage/longhorn-values.yaml"], context);
+        }
+        if (context.storage.provider === "local-path" && TEMPLATES["storage/storageclass-local-path.yaml"]) {
+            files["storage/storageclass-local-path.yaml"] = env.renderString(TEMPLATES["storage/storageclass-local-path.yaml"], context);
+        }
 
         return files;
     }

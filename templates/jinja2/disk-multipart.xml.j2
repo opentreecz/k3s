@@ -1,0 +1,43 @@
+{# AutoYaST disk partitioning - Multi-partition on single disk #}
+<!-- AutoYaST Disk Partitioning: Multi-Partition (Single Disk) -->
+<!-- Generated from templates/jinja2/disk-multipart.xml.j2 -->
+<!-- Layout: EFI + Root (Btrfs) + Rancher (XFS) + Storage (XFS) -->
+
+<partitioning config:type="list">
+  <drive>
+    <device>{{ storage.os_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/boot/efi</mount>
+        <size>512M</size>
+        <filesystem config:type="symbol">vfat</filesystem>
+        <fstopt>umask=0002,utf8=true</fstopt>
+      </partition>
+      <partition>
+        <mount>/</mount>
+        <size>{{ storage.os_root_size }}</size>
+        <filesystem config:type="symbol">btrfs</filesystem>
+      </partition>
+      <partition>
+        <mount>/var/lib/rancher</mount>
+        <size>{{ storage.rancher_size }}</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+{% if storage.provider == "longhorn" %}
+      <partition>
+        <mount>{{ storage.longhorn.data_path }}</mount>
+        <size>{{ storage.storage_size }}</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+{% elif storage.provider == "local-path" %}
+      <partition>
+        <mount>{{ storage.local_path.data_path }}</mount>
+        <size>{{ storage.storage_size }}</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+{% endif %}
+    </partitions>
+  </drive>
+</partitioning>

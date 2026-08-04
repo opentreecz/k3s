@@ -130,6 +130,37 @@ RENDER_TARGETS: list[dict[str, Any]] = [
         "per_node": False,
         "group": "os",
     },
+    # Disk partitioning - AutoYaST (template resolved dynamically)
+    {
+        "template": None,  # resolved dynamically based on disk_layout
+        "output": "os/disk-partitioning.xml",
+        "per_node": False,
+        "group": "storage",
+        "dynamic_template": True,
+    },
+    # Disk partitioning - Ignition (MicroOS)
+    {
+        "template": "disk-ignition.json.j2",
+        "output": "os/disk-ignition.json",
+        "per_node": False,
+        "group": "storage",
+    },
+    # Longhorn Helm values (only when provider == "longhorn")
+    {
+        "template": "longhorn-values.yaml.j2",
+        "output": "storage/longhorn-values.yaml",
+        "per_node": False,
+        "group": "storage",
+        "condition": "longhorn",
+    },
+    # Local-path StorageClass (only when provider == "local-path")
+    {
+        "template": "storageclass-local-path.yaml.j2",
+        "output": "storage/storageclass-local-path.yaml",
+        "per_node": False,
+        "group": "storage",
+        "condition": "local-path",
+    },
 ]
 
 
@@ -230,7 +261,24 @@ def generate_configs(
         if only_groups and target["group"] not in only_groups:
             continue
 
+        # Check conditional rendering (storage provider condition)
+        condition = target.get("condition")
+        if condition:
+            provider = variables.get("storage", {}).get("provider", "none")
+            if provider != condition:
+                continue
+
         template_name = target["template"]
+
+        # Handle dynamic template resolution (disk layout)
+        if target.get("dynamic_template"):
+            disk_layout = variables.get("storage", {}).get("disk_layout", "single-root")
+            layout_map = {
+                "single-root": "disk-single-root.xml.j2",
+                "single-disk-multipart": "disk-multipart.xml.j2",
+                "multi-disk": "disk-multidisk.xml.j2",
+            }
+            template_name = layout_map.get(disk_layout, "disk-single-root.xml.j2")
 
         if target["per_node"]:
             # Determine which nodes to iterate

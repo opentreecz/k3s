@@ -1,0 +1,70 @@
+{# AutoYaST disk partitioning - Multiple disks #}
+<!-- AutoYaST Disk Partitioning: Multi-Disk -->
+<!-- Generated from templates/jinja2/disk-multidisk.xml.j2 -->
+<!-- Layout: Disk 1 (OS) + Disk 2 (K3s data) + Disk 3 (Storage, optional) -->
+
+<partitioning config:type="list">
+  <!-- Disk 1: Operating System -->
+  <drive>
+    <device>{{ storage.os_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/boot/efi</mount>
+        <size>512M</size>
+        <filesystem config:type="symbol">vfat</filesystem>
+        <fstopt>umask=0002,utf8=true</fstopt>
+      </partition>
+      <partition>
+        <mount>/</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">btrfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+
+  <!-- Disk 2: K3s Data (/var/lib/rancher) -->
+  <drive>
+    <device>{{ storage.data_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/var/lib/rancher</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+
+{% if storage.provider == "longhorn" %}
+  <!-- Disk 3: Longhorn Persistent Storage -->
+  <drive>
+    <device>{{ storage.storage_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>{{ storage.longhorn.data_path }}</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+{% elif storage.provider == "local-path" %}
+  <!-- Disk 3: Local-Path Persistent Storage -->
+  <drive>
+    <device>{{ storage.storage_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>{{ storage.local_path.data_path }}</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+{% endif %}
+</partitioning>

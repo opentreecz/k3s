@@ -271,6 +271,121 @@
             </section>
 
             <!-- ============================================================ -->
+            <!-- Disk Layout -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Disk Layout</h2>
+                <p class="section-help">Choose how disks are partitioned on your nodes.</p>
+                <div class="form-group">
+                    <label>Layout Strategy</label>
+                    <div class="radio-group" id="disk-layout-radios">
+                        <label class="radio-label"><input type="radio" name="disk_layout" value="single-root"> Single Root (Btrfs subvolumes, simplest)</label>
+                        <label class="radio-label"><input type="radio" name="disk_layout" value="single-disk-multipart" checked> Multi-Partition (separate /, rancher, storage on one disk)</label>
+                        <label class="radio-label"><input type="radio" name="disk_layout" value="multi-disk"> Multi-Disk (OS, data, storage on separate disks)</label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="os-disk">OS Disk Device</label>
+                        <select id="os-disk-preset" name="os_disk_preset" onchange="document.getElementById('os-disk').value=this.value">
+                            <option value="/dev/sda">/dev/sda (SATA/SAS)</option>
+                            <option value="/dev/nvme0n1">/dev/nvme0n1 (NVMe)</option>
+                            <option value="/dev/vda">/dev/vda (VirtIO)</option>
+                            <option value="">Custom...</option>
+                        </select>
+                        <input type="text" id="os-disk" name="os_disk" value="/dev/sda" style="margin-top:0.3rem" required>
+                    </div>
+                </div>
+                <div class="form-row disk-multipart-fields">
+                    <div class="form-group">
+                        <label for="os-root-size">Root Partition Size</label>
+                        <input type="text" id="os-root-size" name="os_root_size" value="40G">
+                    </div>
+                    <div class="form-group">
+                        <label for="rancher-size">K3s Data Partition Size (/var/lib/rancher)</label>
+                        <input type="text" id="rancher-size" name="rancher_size" value="100G">
+                    </div>
+                    <div class="form-group">
+                        <label for="storage-size">Storage Partition Size</label>
+                        <input type="text" id="storage-size" name="storage_size" value="max">
+                    </div>
+                </div>
+                <div class="form-row disk-multidisk-fields" style="display:none">
+                    <div class="form-group">
+                        <label for="data-disk">Data Disk Device (K3s data)</label>
+                        <input type="text" id="data-disk" name="data_disk" value="/dev/sdb">
+                    </div>
+                    <div class="form-group">
+                        <label for="storage-disk">Storage Disk Device (Longhorn/local-path)</label>
+                        <input type="text" id="storage-disk" name="storage_disk" value="/dev/sdc">
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
+            <!-- Persistent Storage -->
+            <!-- ============================================================ -->
+            <section class="config-section">
+                <h2>Persistent Storage</h2>
+                <p class="section-help">Choose how persistent volumes are provided in the cluster.</p>
+                <div class="form-group">
+                    <label>Storage Provider</label>
+                    <div class="radio-group" id="storage-provider-radios">
+                        <label class="radio-label"><input type="radio" name="storage_provider" value="longhorn" checked> Longhorn (distributed, replicated, snapshots, backups)</label>
+                        <label class="radio-label"><input type="radio" name="storage_provider" value="local-path"> Local-Path (simple, node-local, no replication)</label>
+                        <label class="radio-label"><input type="radio" name="storage_provider" value="none"> None (no persistent storage)</label>
+                    </div>
+                </div>
+                <div id="longhorn-fields">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="longhorn-version">Longhorn Version (empty = latest)</label>
+                            <input type="text" id="longhorn-version" name="longhorn_version" placeholder="v1.6.0">
+                        </div>
+                        <div class="form-group">
+                            <label for="longhorn-replicas">Replica Count</label>
+                            <input type="number" id="longhorn-replicas" name="longhorn_replica_count" value="3" min="1" max="5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="longhorn-data-path">Data Path</label>
+                            <input type="text" id="longhorn-data-path" name="longhorn_data_path" value="/var/lib/longhorn">
+                        </div>
+                        <div class="form-group">
+                            <label for="longhorn-default-class">Default StorageClass</label>
+                            <select id="longhorn-default-class" name="longhorn_default_class">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="longhorn-ui">Enable UI Dashboard</label>
+                            <select id="longhorn-ui" name="longhorn_ui_enabled">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="local-path-fields" style="display:none">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="local-path-data">Data Path</label>
+                            <input type="text" id="local-path-data" name="local_path_data_path" value="/opt/local-path-provisioner">
+                        </div>
+                        <div class="form-group">
+                            <label for="local-path-default-class">Default StorageClass</label>
+                            <select id="local-path-default-class" name="local_path_default_class">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============================================================ -->
             <!-- HAProxy Configuration -->
             <!-- ============================================================ -->
             <section class="config-section">

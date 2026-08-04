@@ -1,0 +1,45 @@
+{# Local-path-provisioner StorageClass and ConfigMap #}
+# Local-Path Provisioner Configuration
+# Generated from templates/jinja2/storageclass-local-path.yaml.j2
+# Apply with: kubectl apply -f storageclass-local-path.yaml
+#
+# Note: K3s includes local-path-provisioner by default.
+# This manifest customizes its data path and default class setting.
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-path-config
+  namespace: kube-system
+data:
+  config.json: |-
+    {
+      "nodePathMap": [
+        {
+          "node": "DEFAULT_PATH_FOR_NON_LISTED_NODES",
+          "paths": ["{{ storage.local_path.data_path }}"]
+        }
+      ]
+    }
+  helperPod.yaml: |-
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: helper-pod
+    spec:
+      containers:
+      - name: helper-pod
+        image: busybox
+        imagePullPolicy: IfNotPresent
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "{{ storage.local_path.default_class | lower }}"
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete

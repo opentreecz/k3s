@@ -176,3 +176,63 @@ ssh:
   user: "root"
   port: 22
   key_path: "~/.ssh/id_ed25519"
+
+# -----------------------------------------------------------------------------
+# Storage & Disk Layout
+# -----------------------------------------------------------------------------
+storage:
+  # Disk layout options:
+  #   "single-root"           - Single Btrfs root with subvolumes (simplest)
+  #   "single-disk-multipart" - Multiple partitions on one disk (recommended)
+  #   "multi-disk"            - OS on one disk, data on separate disk(s)
+  disk_layout: "single-disk-multipart"
+
+  # OS disk device
+  # Common presets: /dev/sda, /dev/nvme0n1, /dev/vda
+  os_disk: "/dev/sda"
+
+  # Root partition size (single-disk-multipart and multi-disk)
+  os_root_size: "40G"
+
+  # K3s data partition size (/var/lib/rancher)
+  # For single-disk-multipart: size on same disk
+  # For multi-disk: entire data_disk is used (this value is ignored)
+  rancher_size: "100G"
+
+  # Data disk device (multi-disk layout only)
+  data_disk: "/dev/sdb"
+
+  # Storage disk device (multi-disk layout only, for Longhorn/local-path)
+  storage_disk: "/dev/sdc"
+
+  # Storage partition size (single-disk-multipart: "max" uses remaining space)
+  storage_size: "max"
+
+  # ---------------------------------------------------------------------------
+  # Persistent Storage Provider
+  # ---------------------------------------------------------------------------
+  # Options: "longhorn", "local-path", "none"
+  #   longhorn   - Distributed replicated block storage (requires dedicated disk/partition)
+  #   local-path - K3s built-in local-path-provisioner (simple, node-local, no replication)
+  #   none       - No persistent storage configured
+  provider: "longhorn"
+
+  # Longhorn configuration (only used if provider == "longhorn")
+  longhorn:
+    # Longhorn version (empty = latest stable)
+    version: ""
+    # Default number of replicas for volumes
+    replica_count: 3
+    # Data path on worker nodes
+    data_path: "/var/lib/longhorn"
+    # Set as default StorageClass
+    default_class: true
+    # Enable Longhorn UI dashboard
+    ui_enabled: true
+
+  # Local-path-provisioner configuration (only used if provider == "local-path")
+  local_path:
+    # Data directory on each node
+    data_path: "/opt/local-path-provisioner"
+    # Set as default StorageClass
+    default_class: true

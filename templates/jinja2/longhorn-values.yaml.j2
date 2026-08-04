@@ -1,0 +1,52 @@
+{# Longhorn Helm values template #}
+# Longhorn Helm Values
+# Generated from templates/jinja2/longhorn-values.yaml.j2
+# Deploy with: helm install longhorn longhorn/longhorn -n longhorn-system --create-namespace -f longhorn-values.yaml
+
+defaultSettings:
+  # Default number of replicas for new volumes
+  defaultReplicaCount: {{ storage.longhorn.replica_count }}
+  # Default data path on nodes
+  defaultDataPath: "{{ storage.longhorn.data_path }}"
+  # Automatically create default disk on labeled nodes
+  createDefaultDiskLabeledNodes: true
+  # Storage over-provisioning percentage (0 = disabled)
+  storageOverProvisioningPercentage: 200
+  # Storage minimal available percentage before warning
+  storageMinimalAvailablePercentage: 15
+  # Default replica auto-balance
+  replicaAutoBalance: "best-effort"
+  # Guaranteed instance manager CPU (millicores)
+  guaranteedInstanceManagerCPU: 12
+
+persistence:
+  # Set Longhorn as the default StorageClass
+  defaultClass: {{ storage.longhorn.default_class | lower }}
+  # Default replica count for the StorageClass
+  defaultClassReplicaCount: {{ storage.longhorn.replica_count }}
+  # Default filesystem type
+  defaultFsType: "ext4"
+  # Reclaim policy
+  reclaimPolicy: "Delete"
+
+csi:
+  # Kubelet root directory
+  kubeletRootDir: "/var/lib/kubelet"
+
+longhornUI:
+  # Enable the Longhorn web UI
+  enabled: {{ storage.longhorn.ui_enabled | lower }}
+  # Replicas for the UI deployment
+  replicas: 1
+
+# Node scheduling
+longhornManager:
+  # Tolerate all taints (run on all nodes)
+  tolerations: []
+
+longhornDriver:
+  tolerations: []
+
+# Ingress (disabled by default - configure separately)
+ingress:
+  enabled: false

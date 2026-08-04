@@ -98,6 +98,35 @@ main {
     margin-bottom: 0.75rem;
 }
 
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+}
+
+.radio-label {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem !important;
+    color: var(--color-text) !important;
+    cursor: pointer;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+}
+
+.radio-label:hover {
+    background: var(--color-bg);
+    border-color: var(--color-border);
+}
+
+.radio-label input[type="radio"] {
+    width: auto;
+    margin: 0;
+}
+
 .form-group label {
     display: block;
     font-size: 0.85rem;

@@ -1,0 +1,49 @@
+{# AutoYaST disk partitioning - Single root (Btrfs with subvolumes) #}
+<!-- AutoYaST Disk Partitioning: Single Root -->
+<!-- Generated from templates/jinja2/disk-single-root.xml.j2 -->
+<!-- Layout: Single Btrfs root partition with OS-managed subvolumes -->
+
+<partitioning config:type="list">
+  <drive>
+    <device>{{ storage.os_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/boot/efi</mount>
+        <size>512M</size>
+        <filesystem config:type="symbol">vfat</filesystem>
+        <fstopt>umask=0002,utf8=true</fstopt>
+      </partition>
+      <partition>
+        <mount>/</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">btrfs</filesystem>
+        <subvolumes config:type="list">
+          <subvolume>
+            <path>home</path>
+          </subvolume>
+          <subvolume>
+            <path>opt</path>
+          </subvolume>
+          <subvolume>
+            <path>root</path>
+          </subvolume>
+          <subvolume>
+            <path>srv</path>
+          </subvolume>
+          <subvolume>
+            <path>tmp</path>
+          </subvolume>
+          <subvolume>
+            <path>usr/local</path>
+          </subvolume>
+          <subvolume>
+            <path>var</path>
+            <copy_on_write config:type="boolean">false</copy_on_write>
+          </subvolume>
+        </subvolumes>
+      </partition>
+    </partitions>
+  </drive>
+</partitioning>

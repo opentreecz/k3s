@@ -190,6 +190,10 @@ shellcheck -x scripts/*.sh
    ./scripts/04-install-k3s-servers.sh
    ./scripts/05-install-k3s-agents.sh
    ```
+7. Install persistent storage (see `docs/07-persistent-storage.md`):
+   ```bash
+   STORAGE_PROVIDER=longhorn ./scripts/06-install-storage.sh
+   ```
 
 ## Prerequisites
 

@@ -432,5 +432,272 @@ keepalived:
 dhcp:
   default_lease_time: {{ dhcp.default_lease_time }}
   max_lease_time: {{ dhcp.max_lease_time }}
+
+storage:
+  disk_layout: "{{ storage.disk_layout }}"
+  os_disk: "{{ storage.os_disk }}"
+  os_root_size: "{{ storage.os_root_size }}"
+  rancher_size: "{{ storage.rancher_size }}"
+  data_disk: "{{ storage.data_disk }}"
+  storage_disk: "{{ storage.storage_disk }}"
+  storage_size: "{{ storage.storage_size }}"
+  provider: "{{ storage.provider }}"
+  longhorn:
+    version: "{{ storage.longhorn.version }}"
+    replica_count: {{ storage.longhorn.replica_count }}
+    data_path: "{{ storage.longhorn.data_path }}"
+    default_class: {{ storage.longhorn.default_class | lower }}
+    ui_enabled: {{ storage.longhorn.ui_enabled | lower }}
+  local_path:
+    data_path: "{{ storage.local_path.data_path }}"
+    default_class: {{ storage.local_path.default_class | lower }}
+`,
+
+    // =========================================================================
+    // Disk Partitioning - Single Root (AutoYaST)
+    // =========================================================================
+    "os/disk-single-root.xml": `<!-- AutoYaST Disk Partitioning: Single Root -->
+<!-- Layout: Single Btrfs root partition with OS-managed subvolumes -->
+
+<partitioning config:type="list">
+  <drive>
+    <device>{{ storage.os_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/boot/efi</mount>
+        <size>512M</size>
+        <filesystem config:type="symbol">vfat</filesystem>
+      </partition>
+      <partition>
+        <mount>/</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">btrfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+</partitioning>
+`,
+
+    // =========================================================================
+    // Disk Partitioning - Multi-Partition (AutoYaST)
+    // =========================================================================
+    "os/disk-multipart.xml": `<!-- AutoYaST Disk Partitioning: Multi-Partition (Single Disk) -->
+<!-- Layout: EFI + Root (Btrfs) + Rancher (XFS) + Storage (XFS) -->
+
+<partitioning config:type="list">
+  <drive>
+    <device>{{ storage.os_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/boot/efi</mount>
+        <size>512M</size>
+        <filesystem config:type="symbol">vfat</filesystem>
+      </partition>
+      <partition>
+        <mount>/</mount>
+        <size>{{ storage.os_root_size }}</size>
+        <filesystem config:type="symbol">btrfs</filesystem>
+      </partition>
+      <partition>
+        <mount>/var/lib/rancher</mount>
+        <size>{{ storage.rancher_size }}</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+{% if storage.provider == "longhorn" %}
+      <partition>
+        <mount>{{ storage.longhorn.data_path }}</mount>
+        <size>{{ storage.storage_size }}</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+{% elif storage.provider == "local-path" %}
+      <partition>
+        <mount>{{ storage.local_path.data_path }}</mount>
+        <size>{{ storage.storage_size }}</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+{% endif %}
+    </partitions>
+  </drive>
+</partitioning>
+`,
+
+    // =========================================================================
+    // Disk Partitioning - Multi-Disk (AutoYaST)
+    // =========================================================================
+    "os/disk-multidisk.xml": `<!-- AutoYaST Disk Partitioning: Multi-Disk -->
+<!-- Layout: Disk 1 (OS) + Disk 2 (K3s data) + Disk 3 (Storage) -->
+
+<partitioning config:type="list">
+  <!-- Disk 1: Operating System -->
+  <drive>
+    <device>{{ storage.os_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/boot/efi</mount>
+        <size>512M</size>
+        <filesystem config:type="symbol">vfat</filesystem>
+      </partition>
+      <partition>
+        <mount>/</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">btrfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+
+  <!-- Disk 2: K3s Data -->
+  <drive>
+    <device>{{ storage.data_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>/var/lib/rancher</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+
+{% if storage.provider == "longhorn" %}
+  <!-- Disk 3: Longhorn Persistent Storage -->
+  <drive>
+    <device>{{ storage.storage_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>{{ storage.longhorn.data_path }}</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+{% elif storage.provider == "local-path" %}
+  <!-- Disk 3: Local-Path Persistent Storage -->
+  <drive>
+    <device>{{ storage.storage_disk }}</device>
+    <initialize config:type="boolean">true</initialize>
+    <use>all</use>
+    <partitions config:type="list">
+      <partition>
+        <mount>{{ storage.local_path.data_path }}</mount>
+        <size>max</size>
+        <filesystem config:type="symbol">xfs</filesystem>
+      </partition>
+    </partitions>
+  </drive>
+{% endif %}
+</partitioning>
+`,
+
+    // =========================================================================
+    // Disk Ignition Config
+    // =========================================================================
+    "os/disk-ignition.json": `{
+  "comment": "Ignition disk configuration for {{ storage.disk_layout }}",
+  "storage": {
+    "disks": [
+      {
+        "device": "{{ storage.os_disk }}",
+        "wipeTable": true,
+        "partitions": [
+          {"label": "efi", "sizeMiB": 512, "typeGuid": "C12A7328-F81F-11D2-BA4B-00A0C93EC93B"}{% if storage.disk_layout == "single-root" %},
+          {"label": "root", "sizeMiB": 0}
+{% elif storage.disk_layout == "single-disk-multipart" %},
+          {"label": "root", "sizeMiB": {{ storage.os_root_size | replace("G", "") * 1024 }}},
+          {"label": "rancher", "sizeMiB": {{ storage.rancher_size | replace("G", "") * 1024 }}}{% if storage.provider != "none" %},
+          {"label": "storage", "sizeMiB": 0}{% endif %}
+
+{% endif %}
+        ]
+      }{% if storage.disk_layout == "multi-disk" %},
+      {"device": "{{ storage.data_disk }}", "wipeTable": true, "partitions": [{"label": "rancher", "sizeMiB": 0}]}{% if storage.provider != "none" %},
+      {"device": "{{ storage.storage_disk }}", "wipeTable": true, "partitions": [{"label": "storage", "sizeMiB": 0}]}{% endif %}
+{% endif %}
+
+    ],
+    "filesystems": [
+      {"device": "/dev/disk/by-partlabel/efi", "format": "vfat", "path": "/boot/efi"},
+      {"device": "/dev/disk/by-partlabel/root", "format": "btrfs", "path": "/"}{% if storage.disk_layout != "single-root" %},
+      {"device": "/dev/disk/by-partlabel/rancher", "format": "xfs", "path": "/var/lib/rancher"}{% endif %}{% if storage.provider == "longhorn" and storage.disk_layout != "single-root" %},
+      {"device": "/dev/disk/by-partlabel/storage", "format": "xfs", "path": "{{ storage.longhorn.data_path }}"}{% elif storage.provider == "local-path" and storage.disk_layout != "single-root" %},
+      {"device": "/dev/disk/by-partlabel/storage", "format": "xfs", "path": "{{ storage.local_path.data_path }}"}{% endif %}
+
+    ]
+  }
+}
+`,
+
+    // =========================================================================
+    // Longhorn Helm Values
+    // =========================================================================
+    "storage/longhorn-values.yaml": `# Longhorn Helm Values
+# Deploy with: helm install longhorn longhorn/longhorn -n longhorn-system --create-namespace -f longhorn-values.yaml
+
+defaultSettings:
+  defaultReplicaCount: {{ storage.longhorn.replica_count }}
+  defaultDataPath: "{{ storage.longhorn.data_path }}"
+  createDefaultDiskLabeledNodes: true
+  storageOverProvisioningPercentage: 200
+  storageMinimalAvailablePercentage: 15
+  replicaAutoBalance: "best-effort"
+
+persistence:
+  defaultClass: {{ storage.longhorn.default_class | lower }}
+  defaultClassReplicaCount: {{ storage.longhorn.replica_count }}
+  defaultFsType: "ext4"
+  reclaimPolicy: "Delete"
+
+csi:
+  kubeletRootDir: "/var/lib/kubelet"
+
+longhornUI:
+  enabled: {{ storage.longhorn.ui_enabled | lower }}
+  replicas: 1
+
+ingress:
+  enabled: false
+`,
+
+    // =========================================================================
+    // Local-Path StorageClass
+    // =========================================================================
+    "storage/storageclass-local-path.yaml": `# Local-Path Provisioner Configuration
+# Apply with: kubectl apply -f storageclass-local-path.yaml
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-path-config
+  namespace: kube-system
+data:
+  config.json: |-
+    {
+      "nodePathMap": [
+        {
+          "node": "DEFAULT_PATH_FOR_NON_LISTED_NODES",
+          "paths": ["{{ storage.local_path.data_path }}"]
+        }
+      ]
+    }
+
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "{{ storage.local_path.default_class | lower }}"
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
 `
 };

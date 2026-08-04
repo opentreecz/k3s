@@ -146,15 +146,68 @@ Confirm:
 - System time is synchronized (timedatectl)
 - The system has booted into the correct snapshot
 
-## Disk Recommendations
+## Disk Layout Options
 
-| Mount Point | Size | Purpose |
-|-------------|------|---------|
-| / | 40 GB+ | Root filesystem (Btrfs with snapshots) |
-| /var/lib/rancher | 100 GB+ | K3s data (containers, volumes) |
-| /var/lib/containers | 50 GB+ | Container images |
+Three disk partitioning strategies are available. Choose based on your performance requirements and hardware:
 
-For production, consider separating `/var/lib/rancher` on its own partition or disk for performance.
+### Option A: Single Root (`single-root`)
+
+Simplest setup. Everything on one Btrfs root partition with OS-managed subvolumes.
+
+```
+/dev/sda (or /dev/nvme0n1)
+├── /boot/efi    (512 MB, vfat)
+└── /            (remaining, Btrfs with subvolumes)
+    ├── @/var
+    ├── @/var/lib/rancher     (K3s data)
+    └── @/var/lib/longhorn    (storage, if configured)
+```
+
+Best for: Lab environments, small clusters, simple hardware.
+
+### Option B: Multi-Partition (`single-disk-multipart`) - Recommended
+
+Multiple partitions on a single disk for I/O isolation.
+
+```
+/dev/sda (or /dev/nvme0n1)
+├── /boot/efi         (512 MB, vfat)
+├── /                 (40 GB, Btrfs)
+├── /var/lib/rancher  (100 GB, XFS)
+└── /var/lib/longhorn (remaining, XFS)  [if Longhorn selected]
+```
+
+Best for: Production with single-disk servers. Isolates container I/O from OS.
+
+### Option C: Multi-Disk (`multi-disk`)
+
+Dedicated disks for OS, K3s data, and persistent storage.
+
+```
+Disk 1 (/dev/sda):   OS
+├── /boot/efi    (512 MB, vfat)
+└── /            (remaining, Btrfs)
+
+Disk 2 (/dev/sdb):   K3s Data
+└── /var/lib/rancher (entire disk, XFS)
+
+Disk 3 (/dev/sdc):   Persistent Storage
+└── /var/lib/longhorn (entire disk, XFS)  [if Longhorn selected]
+```
+
+Best for: High-performance production. Maximum I/O isolation.
+
+### Partition Sizing Recommendations
+
+| Mount Point | Minimum | Recommended | Purpose |
+|-------------|---------|-------------|---------|
+| /boot/efi | 512 MB | 512 MB | EFI System Partition |
+| / | 20 GB | 40 GB | Root (Btrfs with snapshots) |
+| /var/lib/rancher | 50 GB | 100 GB+ | K3s data, container images |
+| /var/lib/longhorn | 50 GB | 200 GB+ | Longhorn replicated volumes |
+| /opt/local-path-provisioner | 50 GB | 100 GB+ | Local-path volumes (alternative) |
+
+The disk layout is configured in `variables.yaml` under the `storage:` section and automatically generates the appropriate AutoYaST or Ignition configuration.
 
 ## Next Steps
 
