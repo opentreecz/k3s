@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://avatars.githubusercontent.com/u/157630833?s=200&v=4" alt="opentree.cz" height="80">
+</p>
+
 # Plataforma de Despliegue Baremetal de Alta Disponibilidad K3s
 
 ## Documento de Referencia Técnica

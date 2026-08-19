@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://avatars.githubusercontent.com/u/157630833?s=200&v=4" alt="opentree.cz" height="80">
+</p>
+
 # HAProxy and Keepalived Setup
 
 HAProxy provides load balancing for the K3s API server across all three master nodes. Keepalived manages a Virtual IP (VIP) that floats between HAProxy instances for high availability.

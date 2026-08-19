@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://avatars.githubusercontent.com/u/157630833?s=200&v=4" alt="opentree.cz" height="80">
+</p>
+
 # Network Planning and DHCP Static Leases
 
 Since the network is controlled by DHCPv4 and DHCPv6, **all nodes must have static DHCP lease reservations** configured on your DHCP server before deployment. This ensures predictable, stable IP addressing without using static OS-level network configuration.

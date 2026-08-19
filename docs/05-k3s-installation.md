@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://avatars.githubusercontent.com/u/157630833?s=200&v=4" alt="opentree.cz" height="80">
+</p>
+
 # K3s Installation
 
 This guide covers bootstrapping the K3s highly-available cluster with 3 master (server) nodes using the embedded etcd datastore.

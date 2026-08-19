@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://avatars.githubusercontent.com/u/157630833?s=200&v=4" alt="opentree.cz" height="80">
+</p>
+
 # Adding Worker Nodes
 
 Worker nodes (agents) run workloads but do not participate in the control plane or etcd cluster. They connect to the K3s API via the HAProxy VIP for high availability.
