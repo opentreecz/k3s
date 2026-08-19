@@ -1,5 +1,7 @@
 <p align="center">
   <img src="https://avatars.githubusercontent.com/u/157630833?s=200&v=4" alt="opentree.cz" height="80">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://raw.githubusercontent.com/cncf/artwork/main/projects/k3s/icon/color/k3s-icon-color.svg" alt="K3s" height="80">
 </p>
 
 # K3s Baremetal High-Availability Cluster
