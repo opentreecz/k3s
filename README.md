@@ -76,7 +76,8 @@ All nodes use **DHCPv4** for network configuration. **IPv6 is optional** and can
 ├── .github/
 │   └── workflows/
 │       ├── lint.yaml               # CI: lint Python, YAML, configs, shell, web
-│       └── pages.yaml              # CI: validate and deploy web UI to GitHub Pages
+│       ├── pages.yaml              # CI: validate and deploy web UI to GitHub Pages
+│       └── release.yaml            # CI: auto-tag and release when APP_VERSION changes
 ├── docs/
 │   ├── 01-os-installation.md       # OS installation guide (SLE Micro / MicroOS)
 │   ├── 02-os-configuration.md      # Post-install OS configuration
