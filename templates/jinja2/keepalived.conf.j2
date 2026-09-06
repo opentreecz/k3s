@@ -1,7 +1,9 @@
 {# Keepalived configuration template - generates one file per master node #}
+{# v2.0.0: Uses resolved_interface for per-node NIC support, conditional IPv6 #}
 ! Keepalived configuration for {{ node.hostname }}
 ! Generated from templates/jinja2/keepalived.conf.j2
 ! Do not edit directly - modify variables.yaml and re-run generate.py
+{% set iface = node.net_interface | default(network.interface, true) %}
 
 global_defs {
     router_id K3S_APISERVER
@@ -19,10 +21,10 @@ vrrp_script check_haproxy {
 
 vrrp_instance K3S_VIP {
     state {{ "MASTER" if node_index == 0 else "BACKUP" }}
-    interface {{ network.interface }}
+    interface {{ iface }}
     virtual_router_id {{ keepalived.router_id }}
     priority {{ 101 - node_index }}
-    advert_int {{ keepalived.advert_int }}
+    advert_int {{ keepalived.advert_int | default(1) }}
 
     authentication {
         auth_type PASS
@@ -30,8 +32,10 @@ vrrp_instance K3S_VIP {
     }
 
     virtual_ipaddress {
-        {{ vip.ipv4 }}/{{ network.subnet_mask_ipv4 }} dev {{ network.interface }}
-        {{ vip.ipv6 }}/{{ network.subnet_mask_ipv6 }} dev {{ network.interface }}
+        {{ vip.ipv4 }}/{{ network.subnet_mask_ipv4 }} dev {{ iface }}
+{% if network.ipv6_enabled | default(true) %}
+        {{ vip.ipv6 }}/{{ network.subnet_mask_ipv6 }} dev {{ iface }}
+{% endif %}
     }
 
     track_script {

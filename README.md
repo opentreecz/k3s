@@ -51,7 +51,16 @@ This repository provides a complete installation and configuration procedure for
 
 ## Network Requirements
 
-All nodes use **DHCPv4 and DHCPv6** for network configuration. Static DHCP leases **must** be configured on your DHCP server before deployment to ensure predictable IP addressing for all cluster components.
+All nodes use **DHCPv4** for network configuration. **IPv6 is optional** and can be configured as dual-stack using DHCPv6 (static leases), SLAAC, or both. Static DHCP leases **must** be configured on your DHCP server before deployment to ensure predictable IP addressing for all cluster components.
+
+### v2.0.0 Highlights
+
+- **IPv6 toggle**: Choose between IPv4-only, DHCPv6, SLAAC, or dual-stack (DHCPv6 + SLAAC)
+- **DUID auto-generation**: Generate DHCPv6 DUIDs from MAC addresses directly in the web UI
+- **Per-node hardware**: Override network interface and disk device per node (supports `auto` detection)
+- **Router/firewall checklist**: Generated `network/router-checklist.md` with all required network configuration
+- **Form validation**: Live + on-generate validation with error highlighting
+- **Colorful UI**: Section-colored navigation for easier form navigation
 
 ## Repository Structure
 
@@ -66,7 +75,8 @@ All nodes use **DHCPv4 and DHCPv6** for network configuration. Static DHCP lease
 ├── .yamllint.yaml                  # yamllint configuration
 ├── .github/
 │   └── workflows/
-│       └── lint.yaml               # CI: lint Python, YAML, configs, shell
+│       ├── lint.yaml               # CI: lint Python, YAML, configs, shell, web
+│       └── pages.yaml              # CI: validate and deploy web UI to GitHub Pages
 ├── docs/
 │   ├── 01-os-installation.md       # OS installation guide (SLE Micro / MicroOS)
 │   ├── 02-os-configuration.md      # Post-install OS configuration
@@ -84,7 +94,8 @@ All nodes use **DHCPv4 and DHCPv6** for network configuration. Static DHCP lease
 │   │   ├── dhcpd6-leases.conf.j2   # ISC DHCPv6 static leases
 │   │   ├── dnsmasq-leases.conf.j2  # dnsmasq leases + DNS
 │   │   ├── hosts.j2                # /etc/hosts entries
-│   │   └── sysctl-k3s.conf.j2      # Kernel parameters
+│   │   ├── sysctl-k3s.conf.j2      # Kernel parameters
+│   │   └── router-checklist.md.j2  # Router/firewall config checklist
 │   └── inventory.example.conf      # Legacy inventory template
 ├── configs/                        # Reference configs (static examples)
 │   ├── haproxy/
@@ -132,7 +143,9 @@ templates/jinja2/ ─┘                        ├── haproxy/haproxy.cfg
                                             ├── network/dhcpd6-leases.conf
                                             ├── network/dnsmasq-leases.conf
                                             ├── network/hosts
-                                            └── os/sysctl-k3s.conf
+                                            ├── network/router-checklist.md
+                                            ├── os/sysctl-k3s.conf
+                                            └── os/{hostname}/disk-partitioning.xml
 ```
 
 There are two ways to populate the `generated/` directory:

@@ -18,8 +18,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate:
+    name: Validate Web Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check web/app.js
+          node --check web/templates.js
+
   deploy:
     name: Deploy
+    needs: validate
     runs-on: ubuntu-latest
     environment:
       name: github-pages

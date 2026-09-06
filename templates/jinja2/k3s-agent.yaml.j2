@@ -1,4 +1,5 @@
 {# K3s agent config template - generates one file per worker node #}
+{# v2.0.0: Conditional IPv6 dual-stack support #}
 # K3s Agent Configuration for {{ node.hostname }}
 # Generated from templates/jinja2/k3s-agent.yaml.j2
 # Do not edit directly - modify variables.yaml and re-run generate.py
@@ -9,8 +10,12 @@ server: "https://{{ vip.ipv4 }}:{{ haproxy.frontend_port }}"
 # Cluster authentication token
 token: "{{ k3s.token or 'GENERATE_TOKEN_AT_DEPLOY_TIME' }}"
 
-# Node networking (dual-stack)
+# Node networking
+{% if network.ipv6_enabled | default(true) %}
 node-ip: "{{ node.ipv4 }},{{ node.ipv6 }}"
+{% else %}
+node-ip: "{{ node.ipv4 }}"
+{% endif %}
 
 # Node labels
 node-label:

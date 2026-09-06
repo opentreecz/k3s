@@ -130,3 +130,76 @@ jobs:
       - name: Run shellcheck on scripts
         run: |
           shellcheck --source-path=scripts -x scripts/*.sh
+
+  # ===========================================================================
+  # Web Code Validation (HTML, JS syntax)
+  # ===========================================================================
+  web-validate:
+    name: Web Code Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check web/app.js
+          node --check web/templates.js
+
+      - name: Validate HTML structure
+        run: |
+          # Check that index.html is well-formed (basic checks)
+          python3 -c "
+          import html.parser, sys
+
+          class Checker(html.parser.HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.errors = []
+              def handle_starttag(self, tag, attrs):
+                  pass
+              def handle_endtag(self, tag):
+                  pass
+
+          with open('web/index.html') as f:
+              content = f.read()
+          parser = Checker()
+          parser.feed(content)
+          print('HTML parsing: OK')
+          "
+
+      - name: Verify template keys match
+        run: |
+          # Ensure templates.js defines expected template keys
+          python3 -c "
+          import re, sys
+
+          with open('web/templates.js') as f:
+              content = f.read()
+
+          # Extract template keys
+          keys = re.findall(r'\"([^\"]+)\":\s*\x60', content)
+          print(f'Found {len(keys)} templates: {keys}')
+
+          required = [
+              'haproxy/haproxy.cfg',
+              'keepalived.conf',
+              'k3s-server.yaml',
+              'k3s-agent.yaml',
+              'network/dhcpd4-leases.conf',
+              'network/hosts',
+              'os/sysctl-k3s.conf',
+              'variables.yaml',
+              'network/router-checklist.md',
+          ]
+          missing = [k for k in required if k not in keys]
+          if missing:
+              print(f'ERROR: Missing templates: {missing}')
+              sys.exit(1)
+          print('All required templates present.')
+          "

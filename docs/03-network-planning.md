@@ -26,8 +26,9 @@ This means:
 - Nodes will lose their IPv6 connectivity
 
 **Solution**: All nodes in this deployment set `net.ipv6.conf.all.accept_ra = 2`
-and `net.ipv6.conf.<interface>.accept_ra = 2`. Value `2` means "accept Router
-Advertisements even when forwarding is enabled."
+and `net.ipv6.conf.default.accept_ra = 2`. Value `2` means "accept Router
+Advertisements even when forwarding is enabled." The `conf.all` and `conf.default`
+settings cover all current and future interfaces, so no per-interface setting is needed.
 
 This is already handled automatically by:
 - `templates/jinja2/sysctl-k3s.conf.j2` (generated sysctl config)
@@ -35,6 +36,11 @@ This is already handled automatically by:
 - `configs/os/microos-ignition.json` (Ignition first-boot config)
 
 When pre-generated configs are available in the `generated/` directory, the deployment scripts use the pre-rendered `os/sysctl-k3s.conf` file directly.
+
+> **Note (v2.0.0):** IPv6 can be completely disabled by setting `ipv6_mode: "disabled"` in
+> `variables.yaml` or selecting "Disabled (IPv4 only)" in the Web Configuration Generator.
+> When disabled, all IPv6-related sysctl parameters, DHCP leases, DNS records, and K3s
+> dual-stack configuration are omitted from the generated files.
 
 ### IPv6 Address Stability Requirements
 

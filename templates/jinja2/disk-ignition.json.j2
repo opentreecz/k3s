@@ -1,12 +1,14 @@
 {# Ignition disk/filesystem configuration #}
 {# Generated from templates/jinja2/disk-ignition.json.j2 #}
+{# v2.0.0: Uses resolved_os_disk for per-node disk device support #}
 {# This provides the storage section for an Ignition config (MicroOS) #}
+{%- set os_disk = resolved_os_disk | default(storage.os_disk) -%}
 {
   "storage": {
     "disks": [
 {% if storage.disk_layout == "single-root" %}
       {
-        "device": "{{ storage.os_disk }}",
+        "device": "{{ os_disk }}",
         "wipeTable": true,
         "partitions": [
           {
@@ -22,7 +24,7 @@
       }
 {% elif storage.disk_layout == "single-disk-multipart" %}
       {
-        "device": "{{ storage.os_disk }}",
+        "device": "{{ os_disk }}",
         "wipeTable": true,
         "partitions": [
           {
@@ -47,7 +49,7 @@
       }
 {% elif storage.disk_layout == "multi-disk" %}
       {
-        "device": "{{ storage.os_disk }}",
+        "device": "{{ os_disk }}",
         "wipeTable": true,
         "partitions": [
           {

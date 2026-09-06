@@ -109,6 +109,7 @@ RENDER_TARGETS: list[dict[str, Any]] = [
         "output": "network/dhcpd6-leases.conf",
         "per_node": False,
         "group": "network",
+        "condition_ipv6": True,
     },
     {
         "template": "dnsmasq-leases.conf.j2",
@@ -120,6 +121,13 @@ RENDER_TARGETS: list[dict[str, Any]] = [
     {
         "template": "hosts.j2",
         "output": "network/hosts",
+        "per_node": False,
+        "group": "network",
+    },
+    # Router/firewall checklist
+    {
+        "template": "router-checklist.md.j2",
+        "output": "network/router-checklist.md",
         "per_node": False,
         "group": "network",
     },
@@ -144,19 +152,21 @@ RENDER_TARGETS: list[dict[str, Any]] = [
         "per_node": False,
         "group": "os",
     },
-    # Disk partitioning - AutoYaST (template resolved dynamically)
+    # Disk partitioning - AutoYaST (per-node, template resolved dynamically)
     {
         "template": None,  # resolved dynamically based on disk_layout
-        "output": "os/disk-partitioning.xml",
-        "per_node": False,
+        "output": "os/{hostname}/disk-partitioning.xml",
+        "per_node": True,
+        "node_type": "all",
         "group": "storage",
         "dynamic_template": True,
     },
-    # Disk partitioning - Ignition (MicroOS)
+    # Disk partitioning - Ignition (per-node, MicroOS)
     {
         "template": "disk-ignition.json.j2",
-        "output": "os/disk-ignition.json",
-        "per_node": False,
+        "output": "os/{hostname}/disk-ignition.json",
+        "per_node": True,
+        "node_type": "all",
         "group": "storage",
     },
     # Longhorn Helm values (only when provider == "longhorn")
@@ -282,6 +292,12 @@ def generate_configs(
             if provider != condition:
                 continue
 
+        # Check IPv6 condition
+        if target.get("condition_ipv6"):
+            ipv6_enabled = variables.get("network", {}).get("ipv6_enabled", True)
+            if not ipv6_enabled:
+                continue
+
         template_name = target["template"]
 
         # Handle dynamic template resolution (disk layout)
@@ -297,16 +313,28 @@ def generate_configs(
         if target["per_node"]:
             # Determine which nodes to iterate
             node_type = target["node_type"]
-            nodes = (
-                variables["masters"] if node_type == "master" else variables["workers"]
-            )
+            if node_type == "all":
+                nodes = list(variables["masters"]) + list(variables["workers"])
+            elif node_type == "master":
+                nodes = variables["masters"]
+            else:
+                nodes = variables["workers"]
+
+            global_iface = variables.get("network", {}).get("interface", "eth0")
+            global_os_disk = variables.get("storage", {}).get("os_disk", "/dev/sda")
 
             for idx, node in enumerate(nodes):
+                # Resolve per-node hardware overrides
+                resolved_iface = node.get("net_interface") or global_iface
+                resolved_os_disk = node.get("os_disk") or global_os_disk
+
                 # Build per-node context
                 context = {
                     **variables,
                     "node": node,
                     "node_index": idx,
+                    "resolved_interface": resolved_iface,
+                    "resolved_os_disk": resolved_os_disk,
                 }
 
                 # Render

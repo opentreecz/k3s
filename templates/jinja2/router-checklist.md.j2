@@ -1,0 +1,111 @@
+{# Router & Firewall Configuration Checklist template #}
+{# v2.0.0: Generated checklist with actual cluster values #}
+# Router & Firewall Configuration Checklist
+# Generated from templates/jinja2/router-checklist.md.j2
+# Cluster domain: {{ network.domain }}
+
+## 1. DHCPv4 Static Leases
+
+Reserve these MAC-to-IPv4 mappings on your DHCP server:
+
+| Hostname | MAC Address | IPv4 Address |
+|----------|-------------|--------------|
+{% for master in masters %}
+| {{ master.hostname }} | {{ master.mac }} | {{ master.ipv4 }} |
+{% endfor %}
+{% for worker in workers %}
+| {{ worker.hostname }} | {{ worker.mac }} | {{ worker.ipv4 }} |
+{% endfor %}
+
+**IMPORTANT:** Reserve VIP {{ vip.ipv4 }} ({{ vip.hostname }}) — must NOT be in the DHCP dynamic range.
+{% if network.ipv6_enabled | default(true) and (network.ipv6_mode | default("dhcpv6") == "dhcpv6" or network.ipv6_mode | default("dhcpv6") == "both") %}
+
+## 2. DHCPv6 Static Leases (mode: {{ network.ipv6_mode }})
+
+Reserve these DUID-to-IPv6 mappings on your DHCPv6 server:
+
+| Hostname | DUID | IPv6 Address |
+|----------|------|--------------|
+{% for master in masters %}
+| {{ master.hostname }} | {{ master.duid }} | {{ master.ipv6 }} |
+{% endfor %}
+{% for worker in workers %}
+| {{ worker.hostname }} | {{ worker.duid }} | {{ worker.ipv6 }} |
+{% endfor %}
+{% endif %}
+{% if network.ipv6_enabled | default(true) %}
+
+## 3. Router Advertisements
+{% if network.ipv6_mode | default("dhcpv6") == "slaac" or network.ipv6_mode | default("dhcpv6") == "both" %}
+
+- Enable RA on LAN interface
+- Set AdvAutonomous ON (A=1) for SLAAC address generation
+{% if network.ipv6_mode | default("dhcpv6") == "both" %}
+- Set AdvManagedFlag ON (M=1) for DHCPv6 address assignment
+{% endif %}
+- Set AdvOtherConfigFlag ON (O=1) for DNS/NTP via DHCPv6
+{% elif network.ipv6_mode | default("dhcpv6") == "dhcpv6" %}
+
+- Enable RA on LAN interface (required for default gateway even with DHCPv6)
+- Set AdvAutonomous OFF (A=0) — disable SLAAC
+- Set AdvManagedFlag ON (M=1) — use DHCPv6 for addresses
+- Set AdvOtherConfigFlag ON (O=1) — use DHCPv6 for DNS/NTP
+{% endif %}
+{% endif %}
+
+## 4. DNS Records
+
+| Hostname | A Record |{% if network.ipv6_enabled | default(true) %} AAAA Record |{% endif %}
+
+|----------|----------|{% if network.ipv6_enabled | default(true) %}-------------|{% endif %}
+
+| {{ vip.hostname }}.{{ network.domain }} | {{ vip.ipv4 }} |{% if network.ipv6_enabled | default(true) %} {{ vip.ipv6 }} |{% endif %}
+
+{% for master in masters %}
+| {{ master.hostname }}.{{ network.domain }} | {{ master.ipv4 }} |{% if network.ipv6_enabled | default(true) %} {{ master.ipv6 }} |{% endif %}
+
+{% endfor %}
+{% for worker in workers %}
+| {{ worker.hostname }}.{{ network.domain }} | {{ worker.ipv4 }} |{% if network.ipv6_enabled | default(true) %} {{ worker.ipv6 }} |{% endif %}
+
+{% endfor %}
+
+## 5. Firewall Rules
+
+| Port | Protocol | Purpose | Direction |
+|------|----------|---------|-----------|
+| {{ k3s.api_port }} | TCP | K3s API Server | All -> Masters |
+| 2379-2380 | TCP | etcd peer/client | Masters <-> Masters |
+| 10250 | TCP | Kubelet API | All <-> All |
+| 8472 | UDP | Flannel VXLAN | All <-> All |
+| 30000-32767 | TCP/UDP | NodePort Services | External -> All |
+| 112 | VRRP (IP proto) | Keepalived VIP failover | Masters <-> Masters |
+| {{ haproxy.stats_port }} | TCP | HAProxy Stats | Admin -> Masters |
+| {{ ssh.port }} | TCP | SSH | Admin -> All |
+{% if network.ipv6_enabled | default(true) %}
+
+### ICMPv6 (CRITICAL)
+
+**Never block ICMPv6 entirely.** IPv6 depends on it for:
+- Neighbor Discovery (replaces ARP)
+- Router Solicitation/Advertisement
+- Path MTU Discovery
+- Duplicate Address Detection
+
+At minimum allow ICMPv6 types: 133 (RS), 134 (RA), 135 (NS), 136 (NA), 137 (Redirect).
+{% endif %}
+
+## 6. Network Services Checklist
+
+- [ ] DHCPv4 server with static leases for all nodes
+- [ ] DNS server with A records for all nodes + VIP
+{% if network.ipv6_enabled | default(true) %}
+{% if network.ipv6_mode | default("dhcpv6") == "dhcpv6" or network.ipv6_mode | default("dhcpv6") == "both" %}
+- [ ] DHCPv6 server with static leases (DUID-based) for all nodes
+{% endif %}
+- [ ] DNS server with AAAA records for all nodes + VIP
+- [ ] Router Advertisements enabled on LAN interface
+{% endif %}
+- [ ] VIP address ({{ vip.ipv4 }}) excluded from DHCP dynamic range
+- [ ] Firewall rules allowing inter-node cluster traffic
+- [ ] NTP server accessible from cluster nodes

@@ -6,7 +6,7 @@
 <partitioning config:type="list">
   <!-- Disk 1: Operating System -->
   <drive>
-    <device>{{ storage.os_disk }}</device>
+    <device>{{ resolved_os_disk | default(storage.os_disk) }}</device>
     <initialize config:type="boolean">true</initialize>
     <use>all</use>
     <partitions config:type="list">

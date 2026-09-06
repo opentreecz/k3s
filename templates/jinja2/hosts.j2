@@ -1,22 +1,29 @@
 {# /etc/hosts entries template #}
+{# v2.0.0: Conditional IPv6 entries #}
 # /etc/hosts entries for K3s Cluster
 # Generated from templates/jinja2/hosts.j2
 # Do not edit directly - modify variables.yaml and re-run generate.py
 #
 # Append these entries to /etc/hosts on all cluster nodes.
 
-# K3s API Virtual IP (IPv4 + IPv6)
+# K3s API Virtual IP
 {{ vip.ipv4 }}    {{ vip.hostname }}.{{ network.domain }} {{ vip.hostname }}
+{% if network.ipv6_enabled | default(true) %}
 {{ vip.ipv6 }}    {{ vip.hostname }}.{{ network.domain }} {{ vip.hostname }}
+{% endif %}
 
 # Master nodes
 {% for master in masters %}
 {{ master.ipv4 }}    {{ master.hostname }}.{{ network.domain }} {{ master.hostname }}
+{% if network.ipv6_enabled | default(true) %}
 {{ master.ipv6 }}    {{ master.hostname }}.{{ network.domain }} {{ master.hostname }}
+{% endif %}
 {% endfor %}
 
 # Worker nodes
 {% for worker in workers %}
 {{ worker.ipv4 }}    {{ worker.hostname }}.{{ network.domain }} {{ worker.hostname }}
+{% if network.ipv6_enabled | default(true) %}
 {{ worker.ipv6 }}    {{ worker.hostname }}.{{ network.domain }} {{ worker.hostname }}
+{% endif %}
 {% endfor %}

@@ -1,10 +1,12 @@
 {# ISC DHCPv6 static leases template #}
+{# v2.0.0: Conditional on ipv6_enabled #}
 # ISC DHCP Server - DHCPv6 Static Leases for K3s Cluster
 # Generated from templates/jinja2/dhcpd6-leases.conf.j2
 # Do not edit directly - modify variables.yaml and re-run generate.py
 #
 # Include this file in your dhcpd6.conf:
 #   include "/etc/dhcp/k3s-leases6.conf";
+{% if network.ipv6_enabled | default(true) %}
 
 group k3s-cluster-v6 {
     option dhcp6.domain-search "{{ network.domain }}";
@@ -30,3 +32,6 @@ group k3s-cluster-v6 {
 
 {% endfor %}
 }
+{% else %}
+# IPv6 is disabled - no DHCPv6 leases generated.
+{% endif %}

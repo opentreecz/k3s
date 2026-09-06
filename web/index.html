@@ -14,7 +14,7 @@
         <h1>K3s Cluster Configuration Generator</h1>
         <p class="subtitle">Generate deployment configurations for a highly available K3s cluster on baremetal servers</p>
         <div class="version-info">
-            <span id="app-version">v1.0.0</span>
+            <span id="app-version">v2.0.0</span>
         </div>
     </header>
 
@@ -23,7 +23,7 @@
             <!-- ============================================================ -->
             <!-- OS Configuration -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="os">
                 <h2>Operating System</h2>
                 <div class="form-group">
                     <label for="os-distribution">Distribution</label>
@@ -35,13 +35,14 @@
                 <div class="form-group sle-only" style="display:none;">
                     <label for="sle-reg-code">SLE Registration Code</label>
                     <input type="text" id="sle-reg-code" name="sle_registration_code" placeholder="XXXXX-XXXXX-XXXXX-XXXXX">
+                    <span class="error-message"></span>
                 </div>
             </section>
 
             <!-- ============================================================ -->
             <!-- SSH Key Configuration -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="ssh">
                 <h2>SSH Keys</h2>
                 <p class="section-help">Public SSH keys deployed to all nodes during installation for passwordless access.</p>
                 <div class="form-group">
@@ -63,7 +64,8 @@
                     </div>
                     <div class="form-group">
                         <label for="ssh-port">SSH Port</label>
-                        <input type="number" id="ssh-port" name="ssh_port" value="22" min="1" max="65535">
+                        <input type="number" id="ssh-port" name="ssh_port" value="22" min="1" max="65535" data-validate="port">
+                        <span class="error-message"></span>
                     </div>
                 </div>
             </section>
@@ -71,66 +73,111 @@
             <!-- ============================================================ -->
             <!-- Network Configuration -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="network">
                 <h2>Network</h2>
+                <p class="section-help">Configure IPv4 networking (required) and optionally IPv6 dual-stack. IPv6 can be disabled for IPv4-only clusters, or enabled with SLAAC, DHCPv6 (static leases), or both.</p>
+
+                <details class="field-help">
+                    <summary>What do I need to configure on my router/firewall?</summary>
+                    <div class="help-content">
+                        <p>After generating the configuration, you will need to set up:</p>
+                        <ul>
+                            <li><strong>DHCPv4 static leases</strong> for all nodes (MAC &rarr; IPv4 mapping)</li>
+                            <li><strong>DHCPv6 static leases</strong> (if using DHCPv6 mode) with DUID &rarr; IPv6 mapping</li>
+                            <li><strong>DNS records</strong> (A and optionally AAAA) for all nodes and the VIP</li>
+                            <li><strong>Router Advertisements</strong> (if using SLAAC or Both mode)</li>
+                            <li><strong>Firewall rules</strong> for K3s API (6443), etcd (2379-2380), kubelet (10250), Flannel VXLAN (8472), NodePorts (30000-32767), and VRRP (protocol 112)</li>
+                        </ul>
+                        <p>A detailed checklist with your actual cluster values is included in the generated ZIP as <code>network/router-checklist.md</code>.</p>
+                    </div>
+                </details>
+
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="net-interface">Network Interface</label>
-                        <input type="text" id="net-interface" name="network_interface" value="eth0" required>
+                        <label for="net-interface">Network Interface (default for all nodes)</label>
+                        <input type="text" id="net-interface" name="network_interface" value="eth0" required data-validate="required">
+                        <span class="error-message"></span>
+                        <small style="color:var(--color-text-muted);font-size:0.78rem;">Each node can override this in its Advanced section. Use <code>auto</code> for deploy-time detection.</small>
                     </div>
                     <div class="form-group">
                         <label for="net-domain">Cluster Domain</label>
-                        <input type="text" id="net-domain" name="network_domain" value="k3s.local" required>
+                        <input type="text" id="net-domain" name="network_domain" value="k3s.local" required data-validate="domain">
+                        <span class="error-message"></span>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="net-dns">DNS Server</label>
-                        <input type="text" id="net-dns" name="dns_server" value="192.168.1.1" required>
+                        <input type="text" id="net-dns" name="dns_server" value="192.168.1.1" required data-validate="ipv4">
+                        <span class="error-message"></span>
                     </div>
                     <div class="form-group">
                         <label for="net-gateway">Gateway (IPv4)</label>
-                        <input type="text" id="net-gateway" name="gateway_ipv4" value="192.168.1.1" required>
+                        <input type="text" id="net-gateway" name="gateway_ipv4" value="192.168.1.1" required data-validate="ipv4">
+                        <span class="error-message"></span>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="net-mask-v4">Subnet Mask IPv4 (CIDR)</label>
-                        <input type="number" id="net-mask-v4" name="subnet_mask_ipv4" value="24" min="8" max="30" required>
+                        <input type="number" id="net-mask-v4" name="subnet_mask_ipv4" value="24" min="8" max="30" required data-validate="cidr4">
+                        <span class="error-message"></span>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group ipv6-field">
                         <label for="net-mask-v6">Subnet Mask IPv6 (CIDR)</label>
-                        <input type="number" id="net-mask-v6" name="subnet_mask_ipv6" value="64" min="16" max="128" required>
+                        <input type="number" id="net-mask-v6" name="subnet_mask_ipv6" value="64" min="16" max="128" required data-validate="cidr6">
+                        <span class="error-message"></span>
                     </div>
                 </div>
                 <div class="form-group">
                     <label for="ipv6-mode">IPv6 Addressing Mode</label>
                     <select id="ipv6-mode" name="ipv6_mode">
-                        <option value="dhcpv6">DHCPv6 (static leases)</option>
+                        <option value="disabled">Disabled (IPv4 only)</option>
+                        <option value="dhcpv6" selected>DHCPv6 (static leases)</option>
                         <option value="slaac">SLAAC</option>
                         <option value="both">Both (DHCPv6 + SLAAC)</option>
                     </select>
+                    <small style="color:var(--color-text-muted);font-size:0.78rem;">Disabled = IPv4 only. SLAAC = auto-configured from router advertisements. DHCPv6 = static leases via DUID. Both = DHCPv6 + SLAAC combined.</small>
                 </div>
+
+                <details class="field-help ipv6-field">
+                    <summary>How do IPv6 addresses work in each mode?</summary>
+                    <div class="help-content">
+                        <p><strong>DHCPv6 (recommended for servers):</strong> You choose the exact IPv6 address for each node (e.g., <code>fd00::101</code>). The DHCPv6 server assigns this address to the node identified by its DUID. You have full control.</p>
+                        <p><strong>SLAAC:</strong> The node auto-generates its IPv6 address from the router-advertised prefix + its MAC address (EUI-64) or a stable random identifier (RFC 7217). The address is <em>not</em> directly controllable. Enter the <em>expected</em> address after booting the node once and checking with <code>ip -6 addr show</code>.</p>
+                        <p><strong>EUI-64 calculation from MAC:</strong></p>
+                        <pre>MAC:    aa:bb:cc:dd:ee:01
+Split:  aa:bb:cc | dd:ee:01
+Insert: aa:bb:cc:ff:fe:dd:ee:01
+Flip 7: a8:bb:cc:ff:fe:dd:ee:01
+Result: fd00::a8bb:ccff:fedd:ee01</pre>
+                        <p><strong>Both (DHCPv6 + SLAAC):</strong> The node gets two IPv6 addresses. Enter the DHCPv6-assigned address (the one you control). K3s will bind to this address.</p>
+                        <p><strong>Note:</strong> Most modern Linux distributions use stable-privacy addresses (RFC 7217) instead of EUI-64, making the SLAAC address unpredictable. For servers, DHCPv6 with static leases is recommended.</p>
+                    </div>
+                </details>
             </section>
 
             <!-- ============================================================ -->
             <!-- Virtual IP -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="vip">
                 <h2>Virtual IP (API Endpoint)</h2>
                 <p class="section-help">The VIP floats between master nodes via Keepalived for HA API access.</p>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="vip-ipv4">VIP IPv4</label>
-                        <input type="text" id="vip-ipv4" name="vip_ipv4" value="192.168.1.100" required>
+                        <input type="text" id="vip-ipv4" name="vip_ipv4" value="192.168.1.100" required data-validate="ipv4">
+                        <span class="error-message"></span>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group ipv6-field">
                         <label for="vip-ipv6">VIP IPv6</label>
-                        <input type="text" id="vip-ipv6" name="vip_ipv6" value="fd00::100" required>
+                        <input type="text" id="vip-ipv6" name="vip_ipv6" value="fd00::100" required data-validate="ipv6">
+                        <span class="error-message"></span>
                     </div>
                     <div class="form-group">
                         <label for="vip-hostname">VIP Hostname</label>
-                        <input type="text" id="vip-hostname" name="vip_hostname" value="k3s-api" required>
+                        <input type="text" id="vip-hostname" name="vip_hostname" value="k3s-api" required data-validate="hostname">
+                        <span class="error-message"></span>
                     </div>
                 </div>
             </section>
@@ -138,92 +185,183 @@
             <!-- ============================================================ -->
             <!-- Master Nodes -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="masters">
                 <h2>Master Nodes (Control Plane)</h2>
                 <p class="section-help">Exactly 3 master nodes are required for HA etcd quorum.</p>
+
+                <details class="field-help">
+                    <summary>What is a DUID and how do I get it?</summary>
+                    <div class="help-content">
+                        <p>A <strong>DUID</strong> (DHCP Unique Identifier) uniquely identifies a DHCPv6 client for static lease assignment. The most common type is <strong>DUID-LLT</strong> (Link-Layer Address Plus Time):</p>
+                        <pre>00:01:00:01:&lt;timestamp&gt;:&lt;mac-address&gt;
+
+00:01       - DUID type (LLT)
+00:01       - Hardware type (Ethernet)
+XX:XX:XX:XX - Seconds since 2000-01-01 (hex)
+aa:bb:cc:dd:ee:ff - MAC address</pre>
+                        <p><strong>To retrieve the DUID from a running Linux system:</strong></p>
+                        <pre># dhcpcd
+cat /var/lib/dhcpcd/duid
+
+# NetworkManager
+cat /var/lib/NetworkManager/dhclient6-*.lease | grep dhcp6.client-id
+
+# systemd-networkd
+cat /var/lib/systemd/network/duid
+
+# Wicked (SUSE)
+wicked show --verbose &lt;interface&gt; | grep DUID</pre>
+                        <p>Or click <strong>"Generate"</strong> next to each DUID field to create a DUID-LLT from the node's MAC address and the current timestamp. Click <strong>"Generate All DUIDs"</strong> to fill all nodes at once.</p>
+                    </div>
+                </details>
+
                 <div id="master-nodes">
                     <div class="node-entry" data-index="0">
                         <h3>Master 1</h3>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Hostname</label>
-                                <input type="text" name="master_hostname_0" value="master-01" required>
+                                <input type="text" name="master_hostname_0" value="master-01" required data-validate="hostname">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>IPv4</label>
-                                <input type="text" name="master_ipv4_0" value="192.168.1.101" required>
+                                <input type="text" name="master_ipv4_0" value="192.168.1.101" required data-validate="ipv4">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field">
                                 <label>IPv6</label>
-                                <input type="text" name="master_ipv6_0" value="fd00::101" required>
+                                <input type="text" name="master_ipv6_0" value="fd00::101" required data-validate="ipv6">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>MAC Address</label>
-                                <input type="text" name="master_mac_0" value="aa:bb:cc:dd:ee:01" required>
+                                <input type="text" name="master_mac_0" value="aa:bb:cc:dd:ee:01" required data-validate="mac">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field dhcpv6-field">
                                 <label>DHCPv6 DUID</label>
                                 <input type="text" name="master_duid_0" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:01">
+                                <button type="button" class="btn-generate-duid" title="Generate DUID-LLT from MAC address">Generate</button>
+                                <span class="error-message"></span>
                             </div>
                         </div>
+                        <details class="node-advanced">
+                            <summary>Advanced: Per-Node Hardware</summary>
+                            <div class="advanced-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Network Interface</label>
+                                        <input type="text" name="master_net_interface_0" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>OS Disk Device</label>
+                                        <input type="text" name="master_os_disk_0" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
                     </div>
                     <div class="node-entry" data-index="1">
                         <h3>Master 2</h3>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Hostname</label>
-                                <input type="text" name="master_hostname_1" value="master-02" required>
+                                <input type="text" name="master_hostname_1" value="master-02" required data-validate="hostname">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>IPv4</label>
-                                <input type="text" name="master_ipv4_1" value="192.168.1.102" required>
+                                <input type="text" name="master_ipv4_1" value="192.168.1.102" required data-validate="ipv4">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field">
                                 <label>IPv6</label>
-                                <input type="text" name="master_ipv6_1" value="fd00::102" required>
+                                <input type="text" name="master_ipv6_1" value="fd00::102" required data-validate="ipv6">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>MAC Address</label>
-                                <input type="text" name="master_mac_1" value="aa:bb:cc:dd:ee:02" required>
+                                <input type="text" name="master_mac_1" value="aa:bb:cc:dd:ee:02" required data-validate="mac">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field dhcpv6-field">
                                 <label>DHCPv6 DUID</label>
                                 <input type="text" name="master_duid_1" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:02">
+                                <button type="button" class="btn-generate-duid" title="Generate DUID-LLT from MAC address">Generate</button>
+                                <span class="error-message"></span>
                             </div>
                         </div>
+                        <details class="node-advanced">
+                            <summary>Advanced: Per-Node Hardware</summary>
+                            <div class="advanced-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Network Interface</label>
+                                        <input type="text" name="master_net_interface_1" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>OS Disk Device</label>
+                                        <input type="text" name="master_os_disk_1" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
                     </div>
                     <div class="node-entry" data-index="2">
                         <h3>Master 3</h3>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Hostname</label>
-                                <input type="text" name="master_hostname_2" value="master-03" required>
+                                <input type="text" name="master_hostname_2" value="master-03" required data-validate="hostname">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>IPv4</label>
-                                <input type="text" name="master_ipv4_2" value="192.168.1.103" required>
+                                <input type="text" name="master_ipv4_2" value="192.168.1.103" required data-validate="ipv4">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field">
                                 <label>IPv6</label>
-                                <input type="text" name="master_ipv6_2" value="fd00::103" required>
+                                <input type="text" name="master_ipv6_2" value="fd00::103" required data-validate="ipv6">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>MAC Address</label>
-                                <input type="text" name="master_mac_2" value="aa:bb:cc:dd:ee:03" required>
+                                <input type="text" name="master_mac_2" value="aa:bb:cc:dd:ee:03" required data-validate="mac">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field dhcpv6-field">
                                 <label>DHCPv6 DUID</label>
                                 <input type="text" name="master_duid_2" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:03">
+                                <button type="button" class="btn-generate-duid" title="Generate DUID-LLT from MAC address">Generate</button>
+                                <span class="error-message"></span>
                             </div>
                         </div>
+                        <details class="node-advanced">
+                            <summary>Advanced: Per-Node Hardware</summary>
+                            <div class="advanced-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Network Interface</label>
+                                        <input type="text" name="master_net_interface_2" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>OS Disk Device</label>
+                                        <input type="text" name="master_os_disk_2" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
                     </div>
                 </div>
+                <button type="button" id="generate-all-duids" class="btn-generate-all dhcpv6-field">Generate All DUIDs from MAC Addresses</button>
             </section>
 
             <!-- ============================================================ -->
             <!-- Worker Nodes -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="workers">
                 <h2>Worker Nodes</h2>
                 <p class="section-help">Add worker nodes that will run your workloads.</p>
                 <div id="worker-nodes">
@@ -232,25 +370,46 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Hostname</label>
-                                <input type="text" name="worker_hostname_0" value="worker-01" required>
+                                <input type="text" name="worker_hostname_0" value="worker-01" required data-validate="hostname">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>IPv4</label>
-                                <input type="text" name="worker_ipv4_0" value="192.168.1.111" required>
+                                <input type="text" name="worker_ipv4_0" value="192.168.1.111" required data-validate="ipv4">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field">
                                 <label>IPv6</label>
-                                <input type="text" name="worker_ipv6_0" value="fd00::111" required>
+                                <input type="text" name="worker_ipv6_0" value="fd00::111" required data-validate="ipv6">
+                                <span class="error-message"></span>
                             </div>
                             <div class="form-group">
                                 <label>MAC Address</label>
-                                <input type="text" name="worker_mac_0" value="aa:bb:cc:dd:ee:11" required>
+                                <input type="text" name="worker_mac_0" value="aa:bb:cc:dd:ee:11" required data-validate="mac">
+                                <span class="error-message"></span>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group ipv6-field dhcpv6-field">
                                 <label>DHCPv6 DUID</label>
                                 <input type="text" name="worker_duid_0" value="00:01:00:01:XX:XX:XX:XX:aa:bb:cc:dd:ee:11">
+                                <button type="button" class="btn-generate-duid" title="Generate DUID-LLT from MAC address">Generate</button>
+                                <span class="error-message"></span>
                             </div>
                         </div>
+                        <details class="node-advanced">
+                            <summary>Advanced: Per-Node Hardware</summary>
+                            <div class="advanced-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Network Interface</label>
+                                        <input type="text" name="worker_net_interface_0" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>OS Disk Device</label>
+                                        <input type="text" name="worker_os_disk_0" placeholder="Leave empty for global default, or 'auto'">
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
                     </div>
                 </div>
                 <button type="button" id="add-worker" class="btn-add">+ Add Worker Node</button>
@@ -259,7 +418,7 @@
             <!-- ============================================================ -->
             <!-- K3s Configuration -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="k3s">
                 <h2>K3s Configuration</h2>
                 <div class="form-row">
                     <div class="form-group">
@@ -274,7 +433,8 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="k3s-api-port">API Server Port</label>
-                        <input type="number" id="k3s-api-port" name="k3s_api_port" value="6443" required>
+                        <input type="number" id="k3s-api-port" name="k3s_api_port" value="6443" required data-validate="port">
+                        <span class="error-message"></span>
                     </div>
                     <div class="form-group">
                         <label for="k3s-disable">Disable Components (comma-separated)</label>
@@ -284,21 +444,25 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="k3s-cluster-cidr-v4">Cluster CIDR (IPv4)</label>
-                        <input type="text" id="k3s-cluster-cidr-v4" name="k3s_cluster_cidr_v4" value="10.42.0.0/16" required>
+                        <input type="text" id="k3s-cluster-cidr-v4" name="k3s_cluster_cidr_v4" value="10.42.0.0/16" required data-validate="cidr">
+                        <span class="error-message"></span>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group ipv6-field">
                         <label for="k3s-cluster-cidr-v6">Cluster CIDR (IPv6)</label>
-                        <input type="text" id="k3s-cluster-cidr-v6" name="k3s_cluster_cidr_v6" value="fd42::/48" required>
+                        <input type="text" id="k3s-cluster-cidr-v6" name="k3s_cluster_cidr_v6" value="fd42::/48" required data-validate="cidr">
+                        <span class="error-message"></span>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="k3s-service-cidr-v4">Service CIDR (IPv4)</label>
-                        <input type="text" id="k3s-service-cidr-v4" name="k3s_service_cidr_v4" value="10.43.0.0/16" required>
+                        <input type="text" id="k3s-service-cidr-v4" name="k3s_service_cidr_v4" value="10.43.0.0/16" required data-validate="cidr">
+                        <span class="error-message"></span>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group ipv6-field">
                         <label for="k3s-service-cidr-v6">Service CIDR (IPv6)</label>
-                        <input type="text" id="k3s-service-cidr-v6" name="k3s_service_cidr_v6" value="fd43::/112" required>
+                        <input type="text" id="k3s-service-cidr-v6" name="k3s_service_cidr_v6" value="fd43::/112" required data-validate="cidr">
+                        <span class="error-message"></span>
                     </div>
                 </div>
             </section>
@@ -306,9 +470,9 @@
             <!-- ============================================================ -->
             <!-- Disk Layout -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="disk">
                 <h2>Disk Layout</h2>
-                <p class="section-help">Choose how disks are partitioned on your nodes.</p>
+                <p class="section-help">Choose how disks are partitioned on your nodes. Each node can override the OS disk device in its Advanced section.</p>
                 <div class="form-group">
                     <label>Layout Strategy</label>
                     <div class="radio-group" id="disk-layout-radios">
@@ -319,14 +483,16 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="os-disk">OS Disk Device</label>
+                        <label for="os-disk">OS Disk Device (default for all nodes)</label>
                         <select id="os-disk-preset" name="os_disk_preset" onchange="document.getElementById('os-disk').value=this.value">
                             <option value="/dev/sda">/dev/sda (SATA/SAS)</option>
                             <option value="/dev/nvme0n1">/dev/nvme0n1 (NVMe)</option>
                             <option value="/dev/vda">/dev/vda (VirtIO)</option>
+                            <option value="auto">auto (detect at deploy time)</option>
                             <option value="">Custom...</option>
                         </select>
-                        <input type="text" id="os-disk" name="os_disk" value="/dev/sda" style="margin-top:0.3rem" required>
+                        <input type="text" id="os-disk" name="os_disk" value="/dev/sda" style="margin-top:0.3rem" required data-validate="required">
+                        <span class="error-message"></span>
                     </div>
                 </div>
                 <div class="form-row disk-multipart-fields">
@@ -358,7 +524,7 @@
             <!-- ============================================================ -->
             <!-- Persistent Storage -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="storage">
                 <h2>Persistent Storage</h2>
                 <p class="section-help">Choose how persistent volumes are provided in the cluster.</p>
                 <div class="form-group">
@@ -421,16 +587,18 @@
             <!-- ============================================================ -->
             <!-- HAProxy Configuration -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="haproxy">
                 <h2>HAProxy</h2>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="haproxy-frontend-port">Frontend Port</label>
-                        <input type="number" id="haproxy-frontend-port" name="haproxy_frontend_port" value="6443" required>
+                        <input type="number" id="haproxy-frontend-port" name="haproxy_frontend_port" value="6443" required data-validate="port">
+                        <span class="error-message"></span>
                     </div>
                     <div class="form-group">
                         <label for="haproxy-stats-port">Stats Port</label>
-                        <input type="number" id="haproxy-stats-port" name="haproxy_stats_port" value="8404" required>
+                        <input type="number" id="haproxy-stats-port" name="haproxy_stats_port" value="8404" required data-validate="port">
+                        <span class="error-message"></span>
                     </div>
                 </div>
                 <div class="form-row">
@@ -448,16 +616,18 @@
             <!-- ============================================================ -->
             <!-- Keepalived Configuration -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="keepalived">
                 <h2>Keepalived</h2>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="keepalived-router-id">Virtual Router ID (1-255)</label>
-                        <input type="number" id="keepalived-router-id" name="keepalived_router_id" value="51" min="1" max="255" required>
+                        <input type="number" id="keepalived-router-id" name="keepalived_router_id" value="51" min="1" max="255" required data-validate="routerid">
+                        <span class="error-message"></span>
                     </div>
                     <div class="form-group">
                         <label for="keepalived-auth-pass">Auth Password (max 8 chars)</label>
-                        <input type="text" id="keepalived-auth-pass" name="keepalived_auth_pass" value="K3sHA024" maxlength="8" required>
+                        <input type="text" id="keepalived-auth-pass" name="keepalived_auth_pass" value="K3sHA024" maxlength="8" required data-validate="required">
+                        <span class="error-message"></span>
                     </div>
                 </div>
             </section>
@@ -465,16 +635,18 @@
             <!-- ============================================================ -->
             <!-- DHCP Configuration -->
             <!-- ============================================================ -->
-            <section class="config-section">
+            <section class="config-section" data-accent="dhcp">
                 <h2>DHCP</h2>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="dhcp-default-lease">Default Lease Time (seconds)</label>
-                        <input type="number" id="dhcp-default-lease" name="dhcp_default_lease_time" value="86400" required>
+                        <input type="number" id="dhcp-default-lease" name="dhcp_default_lease_time" value="86400" required data-validate="positive">
+                        <span class="error-message"></span>
                     </div>
                     <div class="form-group">
                         <label for="dhcp-max-lease">Max Lease Time (seconds)</label>
-                        <input type="number" id="dhcp-max-lease" name="dhcp_max_lease_time" value="604800" required>
+                        <input type="number" id="dhcp-max-lease" name="dhcp_max_lease_time" value="604800" required data-validate="positive">
+                        <span class="error-message"></span>
                     </div>
                 </div>
             </section>
@@ -482,7 +654,10 @@
             <!-- ============================================================ -->
             <!-- Actions -->
             <!-- ============================================================ -->
-            <section class="config-section actions">
+            <section class="config-section actions" data-accent="k3s">
+                <div id="validation-banner" class="validation-banner" style="display:none;">
+                    <span id="validation-text"></span>
+                </div>
                 <button type="button" id="btn-generate" class="btn-primary">Generate Configuration</button>
                 <button type="button" id="btn-download" class="btn-download" disabled>Download ZIP Archive</button>
             </section>
