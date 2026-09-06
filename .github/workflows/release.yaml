@@ -4,6 +4,8 @@ name: Auto Release
 on:
   push:
     branches: [main]
+    paths:
+      - "VERSION"
 
 permissions:
   contents: write
@@ -18,10 +20,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract version from app.js
+      - name: Read version
         id: version
         run: |
-          VERSION=$(grep -oP 'APP_VERSION\s*=\s*"\K[^"]+' web/app.js)
+          VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Detected version: v${VERSION}"
@@ -37,6 +39,24 @@ jobs:
             echo "Tag ${{ steps.version.outputs.tag }} does not exist, will create."
           fi
 
+      - name: Sync APP_VERSION in app.js
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          sed -i "s/var APP_VERSION = \".*\"/var APP_VERSION = \"${VERSION}\"/" web/app.js
+          sed -i "s|Application Logic (v[0-9.]*)|Application Logic (v${VERSION})|" web/app.js
+
+          # Check if app.js actually changed
+          if git diff --quiet web/app.js; then
+            echo "app.js already up to date."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add web/app.js
+            git commit -m "chore: sync APP_VERSION to ${VERSION}"
+            git push origin main
+          fi
+
       - name: Create tag
         if: steps.check.outputs.exists == 'false'
         run: |
@@ -48,9 +68,7 @@ jobs:
 
       - name: Generate release notes
         if: steps.check.outputs.exists == 'false'
-        id: notes
         run: |
-          # Find the previous tag
           PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${{ steps.version.outputs.tag }}$" | head -1)
           if [ -z "$PREV_TAG" ]; then
             RANGE="HEAD"
@@ -58,11 +76,12 @@ jobs:
             RANGE="${PREV_TAG}..HEAD"
           fi
 
-          # Build release notes from commit messages
           {
             echo "## Changes"
             echo ""
-            git log "$RANGE" --pretty=format:"- %s" --no-merges | head -50
+            git log "$RANGE" --pretty=format:"- %s" --no-merges \
+              | grep -v "^- chore: sync APP_VERSION" \
+              | head -50
             echo ""
             echo ""
             echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG:-HEAD~1}...${{ steps.version.outputs.tag }}"

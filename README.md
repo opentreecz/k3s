@@ -6,6 +6,10 @@
 
 # K3s Baremetal High-Availability Cluster
 
+[![Deploy to GitHub Pages](https://github.com/opentreecz/k3s/actions/workflows/pages.yaml/badge.svg?branch=main)](https://github.com/opentreecz/k3s/actions/workflows/pages.yaml)
+[![Lint and Validate](https://github.com/opentreecz/k3s/actions/workflows/lint.yaml/badge.svg?branch=main)](https://github.com/opentreecz/k3s/actions/workflows/lint.yaml)
+[![Auto Release](https://github.com/opentreecz/k3s/actions/workflows/release.yaml/badge.svg?branch=main)](https://github.com/opentreecz/k3s/actions/workflows/release.yaml)
+
 **Web Configuration Generator:** [opentreecz.github.io/k3s](https://opentreecz.github.io/k3s/)
 
 This repository provides a complete installation and configuration procedure for deploying a highly available K3s Kubernetes cluster on baremetal servers running **SUSE Linux Enterprise Micro (SLE Micro)** or **openSUSE MicroOS**.
@@ -67,6 +71,7 @@ All nodes use **DHCPv4** for network configuration. **IPv6 is optional** and can
 ```
 .
 ├── README.md                       # This file
+├── VERSION                         # Single source of truth for app version (auto-release)
 ├── variables.yaml                  # Single source of truth for all config values
 ├── generate.py                     # Jinja2 template renderer (generates configs)
 ├── lint_configs.py                 # Custom linter for conf/cfg files

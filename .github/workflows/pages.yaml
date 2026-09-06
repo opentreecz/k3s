@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "web/**"
+      - "VERSION"
   workflow_dispatch:
 
 permissions:
@@ -45,6 +46,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Inject version into app.js
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          sed -i "s/var APP_VERSION = \".*\"/var APP_VERSION = \"${VERSION}\"/" web/app.js
+          echo "Injected version: ${VERSION}"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
