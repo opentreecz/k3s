@@ -1,4 +1,4 @@
-/* K3s Configuration Generator - Application Logic (v2.1.0) */
+/* K3s Configuration Generator - Application Logic (v2.1.1) */
 
 (function () {
     "use strict";
@@ -7,7 +7,7 @@
     // Constants
     // =========================================================================
 
-    var APP_VERSION = "2.1.0";
+    var APP_VERSION = "2.1.1";
     var ARCHIVE_PREFIX = "k3s-config";
 
     // =========================================================================
