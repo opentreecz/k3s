@@ -628,6 +628,328 @@ footer .footer-links a:hover {
 }
 
 /* =========================================================================
+   Header Navigation (shared)
+   ========================================================================= */
+
+.header-nav {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.header-nav a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.header-nav a:hover {
+    text-decoration: underline;
+}
+
+.nav-sep {
+    color: var(--color-text-muted);
+    margin: 0 0.5rem;
+}
+
+/* =========================================================================
+   Tutorial Page Styles
+   ========================================================================= */
+
+.tutorial {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* Table of Contents */
+.toc-section {
+    position: relative;
+}
+
+.toc ol {
+    margin: 0;
+    padding-left: 1.5rem;
+    line-height: 2;
+}
+
+.toc a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+
+.toc a:hover {
+    text-decoration: underline;
+}
+
+/* Step layout */
+.step {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: flex-start;
+}
+
+.step-number {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: var(--color-primary);
+    color: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-top: 0.2rem;
+}
+
+.step-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.step-content h3 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+    color: var(--color-text);
+}
+
+.step-content p {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 0.5rem;
+}
+
+.step-content ul,
+.step-content ol {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.7;
+    padding-left: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.step-content li {
+    margin-bottom: 0.3rem;
+}
+
+/* Code blocks */
+pre.code-block {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.8rem 1rem;
+    margin: 0.5rem 0 0.75rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--color-text);
+    line-height: 1.6;
+}
+
+/* Feature list */
+.feature-list {
+    padding-left: 1.2rem;
+    margin: 0.5rem 0;
+}
+
+.feature-list li {
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    line-height: 1.6;
+}
+
+.feature-list li strong {
+    color: var(--color-text);
+}
+
+/* Architecture diagram */
+.architecture-diagram {
+    margin: 1rem 0;
+}
+
+.architecture-diagram h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.architecture-diagram pre {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    line-height: 1.4;
+}
+
+/* Info tables */
+.info-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+    font-size: 0.85rem;
+}
+
+.info-table th,
+.info-table td {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    text-align: left;
+}
+
+.info-table th {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+
+.info-table td {
+    color: var(--color-text-muted);
+}
+
+.info-table td code {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    background: var(--color-bg);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    color: var(--color-text);
+}
+
+/* Callout boxes */
+.callout {
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    margin: 0.75rem 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.callout strong {
+    display: inline;
+}
+
+.callout a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.callout-info {
+    background: rgba(88, 166, 255, 0.08);
+    border: 1px solid rgba(88, 166, 255, 0.3);
+    color: var(--color-primary);
+}
+
+.callout-warning {
+    background: rgba(210, 153, 34, 0.08);
+    border: 1px solid rgba(210, 153, 34, 0.3);
+    color: var(--color-warning);
+}
+
+.callout-success {
+    background: rgba(63, 185, 80, 0.08);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+    color: var(--color-success);
+}
+
+/* Workflow summary */
+.workflow-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding: 1rem 0;
+}
+
+.workflow-step {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 480px;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+}
+
+.workflow-step a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.workflow-step a:hover {
+    text-decoration: underline;
+}
+
+.workflow-step code {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    background: var(--color-surface);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+}
+
+.workflow-badge {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #000;
+}
+
+.workflow-arrow {
+    color: var(--color-text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.15rem 0;
+}
+
+/* Tutorial section headings */
+.tutorial .config-section h2 {
+    scroll-margin-top: 1rem;
+}
+
+.tutorial .config-section h3 {
+    font-size: 1rem;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.tutorial .config-section > p {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+}
+
+.tutorial .config-section > ul {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.7;
+    padding-left: 1.2rem;
+    margin-bottom: 0.75rem;
+}
+
+.tutorial .config-section > ul li {
+    margin-bottom: 0.3rem;
+}
+
+/* =========================================================================
    Responsive
    ========================================================================= */
 
@@ -644,5 +966,29 @@ footer .footer-links a:hover {
 
     .btn-download {
         margin-left: 0;
+    }
+
+    .step {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .step-number {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+    }
+
+    .info-table {
+        font-size: 0.78rem;
+    }
+
+    .info-table th,
+    .info-table td {
+        padding: 0.35rem 0.5rem;
+    }
+
+    .workflow-step {
+        max-width: 100%;
     }
 }
