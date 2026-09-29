@@ -629,6 +629,7 @@
             "os/ssh-authorized-keys",
             "os/sshd-hardening.conf",
             "network/router-checklist.md",
+            "inventory.conf",
             "variables.yaml"
         ];
 
@@ -755,6 +756,10 @@
             // Enable download button
             document.getElementById("btn-download").disabled = false;
 
+            // Build and show deployment procedure
+            buildDeploymentProcedure(context);
+            document.getElementById("procedure-section").style.display = "block";
+
             // Scroll to output
             outputSection.scrollIntoView({ behavior: "smooth" });
         } catch (err) {
@@ -832,6 +837,229 @@
 
     function padZero(n) {
         return n < 10 ? "0" + n : "" + n;
+    }
+
+    // =========================================================================
+    // Copy to Clipboard
+    // =========================================================================
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text);
+        } else {
+            var ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+        }
+    }
+
+    // Delegated click handler for copy buttons
+    document.addEventListener("click", function (e) {
+        if (e.target.classList.contains("btn-copy")) {
+            var pre = e.target.closest(".proc-code-wrap").querySelector("pre");
+            if (pre) {
+                copyToClipboard(pre.textContent);
+                var orig = e.target.textContent;
+                e.target.textContent = "Copied!";
+                setTimeout(function () { e.target.textContent = orig; }, 1500);
+            }
+        }
+    });
+
+    // =========================================================================
+    // Build Deployment Procedure (value-filled)
+    // =========================================================================
+
+    function codeBlock(code) {
+        return '<div class="proc-code-wrap"><button type="button" class="btn-copy" title="Copy to clipboard">Copy</button><pre class="code-block">' +
+            code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") +
+            '</pre></div>';
+    }
+
+    function buildDeploymentProcedure(ctx) {
+        var m = ctx.masters;
+        var w = ctx.workers;
+        var allNodes = m.concat(w);
+        var vip = ctx.vip.ipv4;
+        var sshUser = ctx.ssh.user || "root";
+        var sshPort = ctx.ssh.port || 22;
+        var storageProvider = ctx.storage.provider;
+        var domain = ctx.network.domain;
+        var firstMaster = m[0];
+
+        // Build IP lists for loops
+        var masterIPs = m.map(function (n) { return n.ipv4; });
+        var workerIPs = w.map(function (n) { return n.ipv4; });
+        var allIPs = masterIPs.concat(workerIPs);
+
+        var html = "";
+
+        // ----- Step 0: Prep deployment host -----
+        html += '<div class="proc-phase">';
+        html += '<h3><span class="proc-num">0</span> Prepare Your Deployment Host</h3>';
+        html += '<p>You need a machine (laptop, workstation, jump host) with SSH access to all nodes.</p>';
+        html += codeBlock(
+            "# Clone the repository\n" +
+            "git clone https://github.com/opentreecz/k3s.git && cd k3s\n" +
+            "pip install -r requirements.txt\n\n" +
+            "# Copy your SSH key to each node (first-time only)\n" +
+            allIPs.map(function (ip) { return "ssh-copy-id" + (sshPort !== 22 ? " -p " + sshPort : "") + " " + sshUser + "@" + ip; }).join("\n")
+        );
+        html += '</div>';
+
+        // ----- Step 1: Import the pack -----
+        html += '<div class="proc-phase">';
+        html += '<h3><span class="proc-num">1</span> Download ZIP &amp; Import the Configuration Pack</h3>';
+        html += '<p>Click <strong>"Download ZIP Archive"</strong> above, then extract into the repo:</p>';
+        html += codeBlock(
+            "# Extract the ZIP into the generated/ directory\n" +
+            "unzip ~/Downloads/k3s-config-*.zip -d generated/\n\n" +
+            "# Copy the inventory file to the repo root (required by deployment scripts)\n" +
+            "cp generated/inventory.conf inventory.conf"
+        );
+        html += '</div>';
+
+        // ----- Step 2: Automated deploy (primary) -----
+        html += '<div class="proc-phase proc-primary">';
+        html += '<h3><span class="proc-num">2</span> Deploy to Servers <span class="proc-tag proc-tag-rec">Recommended: Automated</span></h3>';
+        html += '<p>Run the scripts in order. They SSH into each node and deploy everything automatically using the configs you generated.</p>';
+        html += codeBlock(
+            "# Pre-flight validation (checks SSH, IPs, OS, configs)\n" +
+            "./scripts/00-validate-environment.sh\n\n" +
+            "# Configure OS on all nodes (sysctl, hosts, SSH, firewall, packages)\n" +
+            "./scripts/01-configure-os.sh\n\n" +
+            "# Install HAProxy + Keepalived on masters\n" +
+            "./scripts/02-install-haproxy.sh\n\n" +
+            "# Bootstrap first K3s server on " + firstMaster.hostname + " (" + firstMaster.ipv4 + ")\n" +
+            "./scripts/03-install-k3s-first.sh\n\n" +
+            "# Join " + (m.length > 1 ? m.slice(1).map(function (n) { return n.hostname; }).join(", ") : "remaining masters") + "\n" +
+            "./scripts/04-install-k3s-servers.sh\n\n" +
+            "# Join worker nodes: " + w.map(function (n) { return n.hostname; }).join(", ") + "\n" +
+            "./scripts/05-install-k3s-agents.sh\n\n" +
+            "# Install persistent storage" + (storageProvider !== "none" ? " (" + storageProvider + ")" : "") + "\n" +
+            "STORAGE_PROVIDER=" + storageProvider + " ./scripts/06-install-storage.sh"
+        );
+        html += '<p style="margin-top:0.5rem;font-size:0.82rem;color:var(--color-text-muted);">The token is generated and shared between scripts automatically (saved to <code>.k3s-token</code>). You don\'t need to copy it manually.</p>';
+        html += '</div>';
+
+        // ----- Step 3: Manual fallback (collapsible) -----
+        html += '<details class="proc-phase-details">';
+        html += '<summary>Alternative: Manual Per-Node Deployment</summary>';
+        html += '<div class="proc-phase">';
+        html += '<p>If you prefer to deploy manually instead of using the scripts, run these commands from your deployment host.</p>';
+
+        // OS config
+        html += '<h4>3a. OS Configuration (all nodes)</h4>';
+        html += codeBlock(
+            "# Set hostnames\n" +
+            allNodes.map(function (n) {
+                return "ssh " + sshUser + "@" + n.ipv4 + " \"hostnamectl set-hostname " + n.hostname + "." + domain + "\"";
+            }).join("\n") + "\n\n" +
+            "# Deploy sysctl, hosts, SSH keys to all nodes\n" +
+            "for IP in " + allIPs.join(" ") + "; do\n" +
+            "  scp generated/os/sysctl-k3s.conf " + sshUser + "@${IP}:/etc/sysctl.d/90-k3s.conf\n" +
+            "  ssh " + sshUser + "@${IP} \"sysctl --system\"\n" +
+            "  scp generated/network/hosts " + sshUser + "@${IP}:/tmp/k3s-hosts\n" +
+            "  ssh " + sshUser + "@${IP} \"cat /tmp/k3s-hosts >> /etc/hosts\"\n" +
+            "  scp generated/os/ssh-authorized-keys " + sshUser + "@${IP}:/root/.ssh/authorized_keys\n" +
+            "  ssh " + sshUser + "@${IP} \"chmod 600 /root/.ssh/authorized_keys\"\n" +
+            "done\n\n" +
+            "# Install packages (requires reboot on MicroOS)\n" +
+            "for IP in " + allIPs.join(" ") + "; do\n" +
+            "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install open-iscsi nfs-client cryptsetup apparmor-parser\"\n" +
+            "  ssh " + sshUser + "@${IP} \"transactional-update reboot\"\n" +
+            "done"
+        );
+
+        // HAProxy + Keepalived
+        html += '<h4>3b. HAProxy &amp; Keepalived (masters only)</h4>';
+        html += codeBlock(
+            "# Install packages on masters\n" +
+            "for IP in " + masterIPs.join(" ") + "; do\n" +
+            "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install haproxy keepalived\"\n" +
+            "  ssh " + sshUser + "@${IP} \"transactional-update reboot\"\n" +
+            "done\n\n" +
+            "# Wait for reboot, then deploy configs\n" +
+            "for IP in " + masterIPs.join(" ") + "; do\n" +
+            "  scp generated/haproxy/haproxy.cfg " + sshUser + "@${IP}:/etc/haproxy/haproxy.cfg\n" +
+            "done\n\n" +
+            "# Deploy per-node Keepalived (each master has a unique config!)\n" +
+            m.map(function (n) {
+                return "scp generated/keepalived/" + n.hostname + "/keepalived.conf " + sshUser + "@" + n.ipv4 + ":/etc/keepalived/keepalived.conf";
+            }).join("\n") + "\n\n" +
+            "# Enable non-local bind + start services\n" +
+            "for IP in " + masterIPs.join(" ") + "; do\n" +
+            "  ssh " + sshUser + "@${IP} 'echo \"net.ipv4.ip_nonlocal_bind = 1\" > /etc/sysctl.d/90-haproxy.conf'\n" +
+            "  ssh " + sshUser + "@${IP} 'echo \"net.ipv6.ip_nonlocal_bind = 1\" >> /etc/sysctl.d/90-haproxy.conf'\n" +
+            "  ssh " + sshUser + "@${IP} \"sysctl --system && systemctl enable --now haproxy keepalived\"\n" +
+            "done"
+        );
+
+        // K3s servers
+        html += '<h4>3c. K3s Servers</h4>';
+        html += codeBlock(
+            "# Bootstrap first server (" + firstMaster.hostname + ")\n" +
+            "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"mkdir -p /etc/rancher/k3s\"\n" +
+            "scp generated/k3s/" + firstMaster.hostname + "/config.yaml " + sshUser + "@" + firstMaster.ipv4 + ":/etc/rancher/k3s/config.yaml\n" +
+            "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server' sh -s -\"\n\n" +
+            "# Wait ~60s for first server to become Ready, then join remaining masters\n" +
+            m.slice(1).map(function (n) {
+                return "ssh " + sshUser + "@" + n.ipv4 + " \"mkdir -p /etc/rancher/k3s\"\n" +
+                    "scp generated/k3s/" + n.hostname + "/config.yaml " + sshUser + "@" + n.ipv4 + ":/etc/rancher/k3s/config.yaml\n" +
+                    "ssh " + sshUser + "@" + n.ipv4 + " \"curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server' sh -s -\"";
+            }).join("\n\n")
+        );
+
+        // K3s agents
+        if (w.length > 0) {
+            html += '<h4>3d. K3s Workers</h4>';
+            html += codeBlock(
+                w.map(function (n) {
+                    return "ssh " + sshUser + "@" + n.ipv4 + " \"mkdir -p /etc/rancher/k3s\"\n" +
+                        "scp generated/k3s/" + n.hostname + "/config.yaml " + sshUser + "@" + n.ipv4 + ":/etc/rancher/k3s/config.yaml\n" +
+                        "ssh " + sshUser + "@" + n.ipv4 + " \"curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='agent' sh -s -\"";
+                }).join("\n\n")
+            );
+        }
+
+        html += '</div></details>';
+
+        // ----- Step 4: kubeconfig + verify -----
+        html += '<div class="proc-phase">';
+        html += '<h3><span class="proc-num">4</span> Get kubeconfig &amp; Verify</h3>';
+        html += codeBlock(
+            "# Copy kubeconfig from first master\n" +
+            "scp " + sshUser + "@" + firstMaster.ipv4 + ":/etc/rancher/k3s/k3s.yaml ~/.kube/config\n\n" +
+            "# Point it at the VIP instead of localhost\n" +
+            "sed -i 's|https://127.0.0.1:6443|https://" + vip + ":6443|g' ~/.kube/config\n\n" +
+            "# Verify the cluster\n" +
+            "kubectl get nodes -o wide\n" +
+            "curl -k https://" + vip + ":6443/version"
+        );
+        html += '<p style="margin-top:0.5rem;font-size:0.82rem;color:var(--color-text-muted);">All nodes should show <strong>Ready</strong>. The VIP (<code>' + vip + '</code>) should return the K3s API version.</p>';
+        html += '</div>';
+
+        // ----- Step 5: VIP failover test -----
+        html += '<div class="proc-phase">';
+        html += '<h3><span class="proc-num">5</span> Test VIP Failover</h3>';
+        html += codeBlock(
+            "# Stop HAProxy on the primary master to trigger failover\n" +
+            "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"systemctl stop haproxy\"\n\n" +
+            "# Verify VIP migrated to another master\n" +
+            "ssh " + sshUser + "@" + m[1].ipv4 + " \"ip addr show | grep " + vip + "\"\n\n" +
+            "# API should still work through the VIP\n" +
+            "curl -k https://" + vip + ":6443/version\n\n" +
+            "# Restore HAProxy on first master\n" +
+            "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"systemctl start haproxy\""
+        );
+        html += '</div>';
+
+        document.getElementById("procedure-content").innerHTML = html;
     }
 
 })();

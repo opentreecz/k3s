@@ -628,6 +628,204 @@ footer .footer-links a:hover {
 }
 
 /* =========================================================================
+   Workflow Intro Banner
+   ========================================================================= */
+
+.workflow-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1.25rem 1rem;
+    margin-bottom: 1.5rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.workflow-banner-step {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.88rem;
+    color: var(--color-text-muted);
+}
+
+.workflow-banner-step strong {
+    color: var(--color-text);
+}
+
+.workflow-banner-step small {
+    font-size: 0.78rem;
+}
+
+.workflow-banner-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: var(--color-primary);
+    color: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+.workflow-banner-arrow {
+    color: var(--color-text-muted);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+/* =========================================================================
+   Inline Deployment Procedure
+   ========================================================================= */
+
+.proc-phase {
+    margin-bottom: 1.5rem;
+}
+
+.proc-phase h3 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.proc-phase h4 {
+    font-size: 0.95rem;
+    margin: 1rem 0 0.4rem;
+    color: var(--color-text);
+}
+
+.proc-phase p {
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    margin-bottom: 0.5rem;
+}
+
+.proc-num {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    background: var(--color-primary);
+    color: #000;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+}
+
+.proc-tag {
+    font-size: 0.72rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.proc-tag-rec {
+    background: rgba(63, 185, 80, 0.15);
+    color: var(--color-success);
+    border: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+.proc-primary {
+    border-left: 3px solid var(--color-success);
+    padding-left: 1rem;
+}
+
+/* Code block with copy button */
+.proc-code-wrap {
+    position: relative;
+    margin: 0.4rem 0 0.75rem;
+}
+
+.proc-code-wrap pre.code-block {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    padding-right: 3.5rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-text);
+    line-height: 1.55;
+    margin: 0;
+    white-space: pre;
+}
+
+.btn-copy {
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    padding: 0.2rem 0.5rem;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 0.7rem;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    z-index: 1;
+}
+
+.btn-copy:hover {
+    background: rgba(88, 166, 255, 0.1);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+/* Manual fallback collapsible */
+details.proc-phase-details {
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg);
+    overflow: hidden;
+}
+
+details.proc-phase-details summary {
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    user-select: none;
+    list-style: none;
+}
+
+details.proc-phase-details summary::-webkit-details-marker {
+    display: none;
+}
+
+details.proc-phase-details summary::before {
+    content: "\25B6\00a0";
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    display: inline-block;
+}
+
+details.proc-phase-details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+details.proc-phase-details > .proc-phase {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--color-border);
+}
+
+/* =========================================================================
    Header Navigation (shared)
    ========================================================================= */
 
@@ -990,5 +1188,14 @@ pre.code-block {
 
     .workflow-step {
         max-width: 100%;
+    }
+
+    .workflow-banner {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .workflow-banner-arrow {
+        transform: rotate(90deg);
     }
 }

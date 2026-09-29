@@ -185,6 +185,13 @@ RENDER_TARGETS: list[dict[str, Any]] = [
         "group": "storage",
         "condition": "local-path",
     },
+    # Inventory configuration (for deployment scripts)
+    {
+        "template": "inventory.conf.j2",
+        "output": "inventory.conf",
+        "per_node": False,
+        "group": "inventory",
+    },
 ]
 
 

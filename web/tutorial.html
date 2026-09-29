@@ -261,6 +261,10 @@
         <section id="phase2" class="config-section" data-accent="disk">
             <h2>4. Phase 2 &mdash; Download and Extract the ZIP</h2>
 
+            <div class="callout callout-info">
+                <strong>Already used the web generator?</strong> If you filled in the form on the <a href="index.html">main page</a>, the deployment procedure shown there is pre-filled with your actual values. You can follow it directly. This tutorial covers the same steps with generic examples for reference.
+            </div>
+
             <div class="step">
                 <div class="step-number">1</div>
                 <div class="step-content">
@@ -272,9 +276,19 @@
             <div class="step">
                 <div class="step-number">2</div>
                 <div class="step-content">
-                    <h3>Clone the Repository (if using deployment scripts)</h3>
-<pre class="code-block">git clone https://github.com/opentreecz/k3s.git
-cd k3s</pre>
+                    <h3>Clone the Repository and Prepare the Deployment Host</h3>
+<pre class="code-block"># Clone the repository
+git clone https://github.com/opentreecz/k3s.git
+cd k3s
+
+# Install Python dependencies (for local generation if needed)
+pip install -r requirements.txt
+
+# Ensure your SSH key can reach all nodes
+ssh-copy-id root@192.168.1.101   # master-01
+ssh-copy-id root@192.168.1.102   # master-02
+ssh-copy-id root@192.168.1.103   # master-03
+ssh-copy-id root@192.168.1.111   # worker-01</pre>
                 </div>
             </div>
 
@@ -285,12 +299,30 @@ cd k3s</pre>
 <pre class="code-block"># Extract the downloaded ZIP
 unzip ~/Downloads/k3s-config-*.zip -d generated/
 
+# Copy the inventory file to the repo root (required by deployment scripts)
+cp generated/inventory.conf inventory.conf
+
 # Verify the structure
 ls generated/
-# haproxy/  k3s/  keepalived/  network/  os/  storage/  variables.yaml</pre>
-                    <p>The deployment scripts (<code>scripts/00-06</code>) automatically look for files in <code>generated/</code> and use them if present.</p>
+# haproxy/  inventory.conf  k3s/  keepalived/  network/  os/  storage/  variables.yaml</pre>
+                    <p>The deployment scripts (<code>scripts/00-06</code>) require <code>inventory.conf</code> at the repository root. It contains your node definitions, SSH settings, and cluster variables in bash format. The scripts also read pre-generated configs from <code>generated/</code>.</p>
                 </div>
             </div>
+
+            <details class="field-help" style="margin-bottom:1rem;">
+                <summary>Alternative: Generate the pack locally with Python instead of the web UI</summary>
+                <div class="help-content">
+                    <p>You can produce the exact same files on the command line:</p>
+<pre># Option A: edit variables.yaml directly
+vim variables.yaml
+python3 generate.py
+
+# Option B: reuse the variables.yaml from a downloaded ZIP
+unzip ~/Downloads/k3s-config-*.zip -d generated/
+python3 generate.py --vars generated/variables.yaml</pre>
+                    <p>Both methods populate <code>generated/</code> with the same files (including <code>inventory.conf</code>). Copy inventory.conf to the repo root: <code>cp generated/inventory.conf inventory.conf</code></p>
+                </div>
+            </details>
 
             <div class="step">
                 <div class="step-number">4</div>
@@ -301,6 +333,7 @@ find generated/ -type f | sort
 
 # Expected output (example with 3 masters, 1 worker):
 # generated/haproxy/haproxy.cfg
+# generated/inventory.conf
 # generated/k3s/master-01/config.yaml
 # generated/k3s/master-02/config.yaml
 # generated/k3s/master-03/config.yaml
@@ -334,7 +367,7 @@ find generated/ -type f | sort
         <!-- Understanding Generated Files -->
         <!-- ============================================================ -->
         <section id="generated-files" class="config-section" data-accent="storage">
-            <h2>5. Understanding the Generated Files (All 26 Files)</h2>
+            <h2>5. Understanding the Generated Files (All 27 Files)</h2>
             <p>Here is what each generated file does and where it needs to be deployed:</p>
 
             <h3>Network Configuration (<code>network/</code>)</h3>
@@ -486,7 +519,7 @@ find generated/ -type f | sort
                 </tbody>
             </table>
 
-            <h3>Variables (<code>variables.yaml</code>)</h3>
+            <h3>Variables (<code>variables.yaml</code>) &amp; Inventory (<code>inventory.conf</code>)</h3>
             <table class="info-table">
                 <thead>
                     <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
@@ -496,6 +529,11 @@ find generated/ -type f | sort
                         <td><code>variables.yaml</code></td>
                         <td>All your cluster settings in one YAML file</td>
                         <td>Keep for reference, or use with <code>python3 generate.py --vars variables.yaml</code> to re-generate configs locally</td>
+                    </tr>
+                    <tr>
+                        <td><code>inventory.conf</code></td>
+                        <td>Bash inventory file for the deployment scripts (node arrays, SSH settings, K3s/storage vars)</td>
+                        <td>Copy to the repository root: <code>cp generated/inventory.conf inventory.conf</code>. Required by <code>scripts/00-06</code>.</td>
                     </tr>
                 </tbody>
             </table>
