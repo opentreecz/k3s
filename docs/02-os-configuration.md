@@ -26,6 +26,8 @@ This script performs all steps described below automatically.
 
 The script checks for pre-generated configuration files in the `generated/` directory. If found (from `generate.py` or a Web UI ZIP extraction), it uses them directly for sysctl, hosts, and SSH configs. Otherwise, it falls back to inline generation from `inventory.conf`.
 
+After installing packages via `transactional-update`, the script **automatically reboots all nodes** and waits for SSH to return. This is required on MicroOS/SLE Micro because `transactional-update` installs packages into a new Btrfs snapshot that only becomes active after a reboot. Set `SKIP_REBOOT=1` to disable the automatic reboot (you'll need to reboot nodes manually before proceeding to the next script).
+
 ## Manual Configuration Steps
 
 ### 1. Set Hostname

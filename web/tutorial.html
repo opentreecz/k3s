@@ -34,7 +34,7 @@
                     <li><a href="#prerequisites">Prerequisites</a></li>
                     <li><a href="#phase1">Phase 1 &mdash; Generate Configuration Files</a></li>
                     <li><a href="#phase2">Phase 2 &mdash; Download and Extract the ZIP</a></li>
-                    <li><a href="#generated-files">Understanding the Generated Files (All 26 Files)</a></li>
+                    <li><a href="#generated-files">Understanding the Generated Files (All 27 Files)</a></li>
                     <li><a href="#phase3">Phase 3 &mdash; Network Preparation (Router/DHCP)</a></li>
                     <li><a href="#phase4">Phase 4 &mdash; Install openSUSE MicroOS</a></li>
                     <li><a href="#phase5">Phase 5 &mdash; OS Configuration</a></li>
@@ -43,6 +43,7 @@
                     <li><a href="#phase8">Phase 8 &mdash; Add Worker Nodes</a></li>
                     <li><a href="#phase9">Phase 9 &mdash; Install Persistent Storage</a></li>
                     <li><a href="#verification">Final Verification</a></li>
+                    <li><a href="#recovery">Recovery &amp; Re-Running Steps</a></li>
                     <li><a href="#troubleshooting">Troubleshooting</a></li>
                 </ol>
             </nav>
@@ -135,6 +136,42 @@
             <div class="callout callout-info">
                 <strong>Tip:</strong> If you don't know MAC addresses yet, install the OS first using DHCP, then retrieve them with <code>ip link show eth0 | grep ether</code> and re-generate the configuration.
             </div>
+
+            <h3>Deployment Host Requirements</h3>
+            <p>The deployment is orchestrated from a single machine (your laptop, workstation, or a jump host) that SSHes into each node. It needs:</p>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Tool</th><th>Required?</th><th>Purpose</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>ssh</code> / <code>scp</code></td><td>Required</td><td>Remote execution and file transfer to nodes</td></tr>
+                    <tr><td><code>curl</code></td><td>Required</td><td>K3s installer download, API health checks</td></tr>
+                    <tr><td><code>openssl</code></td><td>Required</td><td>Token generation</td></tr>
+                    <tr><td><code>python3</code> + <code>pip</code></td><td>Optional</td><td>Local config generation via <code>generate.py</code></td></tr>
+                    <tr><td><code>kubectl</code></td><td>Optional</td><td>Cluster verification from deployment host</td></tr>
+                    <tr><td><code>helm</code></td><td>Optional</td><td>Longhorn installation (auto-installed on first master by script 06)</td></tr>
+                </tbody>
+            </table>
+            <p>You must have <strong>root SSH access</strong> to all nodes. Bootstrap with:</p>
+<pre class="code-block">ssh-copy-id -i ~/.ssh/id_ed25519.pub root@&lt;each-node-ip&gt;</pre>
+
+            <h3>Estimated Time</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Phase</th><th>Approx. Time</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Generate configs</td><td>1&ndash;5 min</td><td>Fill form or edit variables.yaml</td></tr>
+                    <tr><td>Network prep (DHCP/DNS)</td><td>5&ndash;15 min</td><td>Depends on your router/DHCP server</td></tr>
+                    <tr><td>OS installation</td><td>10&ndash;20 min/node</td><td>Interactive or Ignition-automated</td></tr>
+                    <tr><td>OS configuration</td><td>5&ndash;10 min</td><td>Automated; includes reboot + wait</td></tr>
+                    <tr><td>HAProxy &amp; Keepalived</td><td>5&ndash;10 min</td><td>Automated; includes reboot + wait if packages new</td></tr>
+                    <tr><td>K3s bootstrap</td><td>5&ndash;10 min</td><td>~60s per server join</td></tr>
+                    <tr><td>Workers</td><td>2&ndash;5 min</td><td>Per worker</td></tr>
+                    <tr><td>Persistent storage</td><td>3&ndash;10 min</td><td>Longhorn pods take 2-3 min to start</td></tr>
+                    <tr><td><strong>Total</strong></td><td><strong>45&ndash;90 min</strong></td><td>For a 3-master, 3-worker cluster</td></tr>
+                </tbody>
+            </table>
         </section>
 
         <!-- ============================================================ -->
@@ -753,7 +790,11 @@ sudo umount /mnt</pre>
                         <li><code>generated/os/ssh-authorized-keys</code> &rarr; <code>/root/.ssh/authorized_keys</code> on all nodes</li>
                         <li><code>generated/os/sshd-hardening.conf</code> &rarr; <code>/etc/ssh/sshd_config.d/</code> on all nodes</li>
                         <li>Installs required packages, loads kernel modules, configures firewall</li>
+                        <li><strong>Reboots all nodes automatically</strong> and waits for SSH to return (required for MicroOS/SLE Micro to activate packages installed via <code>transactional-update</code>)</li>
                     </ul>
+                    <div class="callout callout-warning">
+                        <strong>Why the reboot?</strong> openSUSE MicroOS and SLE Micro are immutable operating systems. Packages installed via <code>transactional-update</code> are placed into a new Btrfs snapshot that only becomes the running system after a reboot. Without rebooting, binaries like <code>open-iscsi</code> are not available and later scripts will fail. The script handles this automatically. To skip the reboot (e.g., if packages were already installed), set <code>SKIP_REBOOT=1</code>.
+                    </div>
                 </div>
             </div>
 
@@ -897,7 +938,7 @@ REMOTE</pre>
 
             <h3>Option A: Automated</h3>
 <pre class="code-block">./scripts/02-install-haproxy.sh</pre>
-            <p>The script deploys <code>generated/haproxy/haproxy.cfg</code> and each node's <code>generated/keepalived/{hostname}/keepalived.conf</code> automatically.</p>
+            <p>The script deploys <code>generated/haproxy/haproxy.cfg</code> and each node's <code>generated/keepalived/{hostname}/keepalived.conf</code> automatically. If HAProxy/Keepalived packages were newly installed, the script <strong>reboots the affected masters and waits for SSH</strong> before starting services (same immutable-OS reason as the OS configuration step).</p>
 
             <h3>Option B: Manual</h3>
 
@@ -1238,10 +1279,54 @@ kubectl delete svc nginx-test</pre>
         </section>
 
         <!-- ============================================================ -->
+        <!-- Recovery / Idempotency -->
+        <!-- ============================================================ -->
+        <section id="recovery" class="config-section" data-accent="disk">
+            <h2>14. Recovery &amp; Re-Running Steps</h2>
+            <p>The deployment scripts are designed to be re-runnable. If a step fails, fix the underlying issue and re-run the same script.</p>
+
+            <h3>Re-run a deployment script</h3>
+            <p>Each script checks whether its work has already been done (e.g., packages already installed, services already running). Re-running is safe:</p>
+<pre class="code-block"># Re-run OS configuration (will skip already-installed packages)
+./scripts/01-configure-os.sh
+
+# Re-run HAProxy setup (will skip already-installed packages)
+./scripts/02-install-haproxy.sh</pre>
+
+            <h3>Reset a K3s server node (start over)</h3>
+<pre class="code-block"># On the server node itself:
+ssh root@&lt;master-ip&gt; "/usr/local/bin/k3s-uninstall.sh"
+
+# Then re-run the K3s install:
+./scripts/03-install-k3s-first.sh   # for the first master
+./scripts/04-install-k3s-servers.sh  # for master-02/03</pre>
+
+            <h3>Reset a K3s worker node (start over)</h3>
+<pre class="code-block"># On the worker node itself:
+ssh root@&lt;worker-ip&gt; "/usr/local/bin/k3s-agent-uninstall.sh"
+
+# Then re-run the agent install:
+./scripts/05-install-k3s-agents.sh</pre>
+
+            <h3>Regenerate configuration after changes</h3>
+            <p>If you need to change a value (IP, hostname, etc.):</p>
+            <ol>
+                <li>Update the form in the <a href="index.html">Configuration Generator</a> and re-download the ZIP</li>
+                <li>Extract again: <code>unzip -o k3s-config-*.zip -d generated/</code> (<code>-o</code> overwrites)</li>
+                <li>Copy the updated inventory: <code>cp generated/inventory.conf inventory.conf</code></li>
+                <li>Re-run the affected deployment script(s)</li>
+            </ol>
+
+            <div class="callout callout-warning">
+                <strong>Caution:</strong> Changing master IPs or the VIP on an already-running cluster requires re-issuing K3s certificates. It is much simpler to reset and redeploy from scratch than to reconfigure a live cluster's addressing.
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
         <!-- Troubleshooting -->
         <!-- ============================================================ -->
         <section id="troubleshooting" class="config-section" data-accent="keepalived">
-            <h2>14. Troubleshooting</h2>
+            <h2>15. Troubleshooting</h2>
 
             <table class="info-table">
                 <thead>
