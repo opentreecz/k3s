@@ -546,7 +546,56 @@ details.node-advanced .advanced-content {
 }
 
 /* =========================================================================
-   Output / File Preview
+   Sticky Action Bar (index.html - always-visible Generate/Download)
+   ========================================================================= */
+
+.actions-sticky {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* =========================================================================
+   Back-to-Top Button
+   ========================================================================= */
+
+.btn-top {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 40px;
+    height: 40px;
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, background 0.2s;
+    z-index: 20;
+}
+
+.btn-top.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.btn-top:hover {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+/* =========================================================================
+   Output / File Preview (improved)
    ========================================================================= */
 
 #output-section {
@@ -555,11 +604,14 @@ details.node-advanced .advanced-content {
 
 .tab-bar {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0.25rem;
     margin-bottom: 1rem;
     border-bottom: 1px solid var(--color-border);
     padding-bottom: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
 }
 
 .tab-bar button {
@@ -572,6 +624,7 @@ details.node-advanced .advanced-content {
     font-size: 0.8rem;
     font-family: var(--font-mono);
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .tab-bar button:hover {
@@ -649,6 +702,14 @@ footer .footer-links a:hover {
     gap: 0.6rem;
     font-size: 0.88rem;
     color: var(--color-text-muted);
+    text-decoration: none;
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius);
+    transition: background 0.2s;
+}
+
+.workflow-banner-step:hover {
+    background: var(--color-bg);
 }
 
 .workflow-banner-step strong {
@@ -683,6 +744,42 @@ footer .footer-links a:hover {
    Inline Deployment Procedure
    ========================================================================= */
 
+/* Progress bar */
+.proc-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding: 0.6rem 0.8rem;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+}
+
+.proc-progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.proc-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--color-success);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.proc-progress-label {
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+/* Phase blocks */
 .proc-phase {
     margin-bottom: 1.5rem;
 }
@@ -702,9 +799,10 @@ footer .footer-links a:hover {
     color: var(--color-text);
 }
 
-.proc-phase p {
+.proc-phase p,
+.proc-hint {
     color: var(--color-text-muted);
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     line-height: 1.6;
     margin-bottom: 0.5rem;
 }
@@ -721,6 +819,38 @@ footer .footer-links a:hover {
     justify-content: center;
     font-weight: 700;
     font-size: 0.8rem;
+}
+
+/* Checkbox + num label */
+.proc-check-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+}
+
+.proc-check-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-success);
+    cursor: pointer;
+}
+
+.proc-check:checked + .proc-num {
+    background: var(--color-success);
+}
+
+/* Tutorial link from procedure steps */
+.proc-tutorial-link {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    margin-left: 0.3rem;
+}
+
+.proc-tutorial-link:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
 }
 
 .proc-tag {
@@ -741,6 +871,26 @@ footer .footer-links a:hover {
 .proc-primary {
     border-left: 3px solid var(--color-success);
     padding-left: 1rem;
+}
+
+/* Deploy.sh download button */
+.btn-deploy-sh {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    margin-top: 0.5rem;
+    background: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-deploy-sh:hover {
+    background: rgba(88, 166, 255, 0.1);
+    border-color: var(--color-primary);
 }
 
 /* Code block with copy button */
@@ -873,10 +1023,19 @@ details.proc-phase-details > .proc-phase {
     color: var(--color-primary);
     text-decoration: none;
     font-size: 0.95rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    transition: background 0.2s;
 }
 
 .toc a:hover {
     text-decoration: underline;
+}
+
+.toc a.toc-active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--color-primary-hover);
+    font-weight: 500;
 }
 
 /* Step layout */
@@ -1021,13 +1180,28 @@ pre.code-block {
     color: var(--color-text);
 }
 
-/* Callout boxes */
+/* =========================================================================
+   Syntax Highlighting (lightweight, no external dependency)
+   ========================================================================= */
+
+.hl-comment { color: #8b949e; font-style: italic; }
+.hl-string  { color: #a5d6ff; }
+.hl-key     { color: #ff7b72; }
+.hl-bool    { color: #ffa657; }
+.hl-flag    { color: #d2a8ff; }
+.hl-var     { color: #79c0ff; }
+
+/* =========================================================================
+   Callout Boxes (improved readability)
+   ========================================================================= */
+
 .callout {
     padding: 0.75rem 1rem;
     border-radius: var(--radius);
     margin: 0.75rem 0;
     font-size: 0.85rem;
     line-height: 1.6;
+    color: var(--color-text-muted);
 }
 
 .callout strong {
@@ -1035,27 +1209,32 @@ pre.code-block {
 }
 
 .callout a {
-    color: inherit;
     text-decoration: underline;
 }
 
 .callout-info {
     background: rgba(88, 166, 255, 0.08);
     border: 1px solid rgba(88, 166, 255, 0.3);
-    color: var(--color-primary);
 }
+
+.callout-info strong { color: var(--color-primary); }
+.callout-info a { color: var(--color-primary); }
 
 .callout-warning {
     background: rgba(210, 153, 34, 0.08);
     border: 1px solid rgba(210, 153, 34, 0.3);
-    color: var(--color-warning);
 }
+
+.callout-warning strong { color: var(--color-warning); }
+.callout-warning a { color: var(--color-warning); }
 
 .callout-success {
     background: rgba(63, 185, 80, 0.08);
     border: 1px solid rgba(63, 185, 80, 0.3);
-    color: var(--color-success);
 }
+
+.callout-success strong { color: var(--color-success); }
+.callout-success a { color: var(--color-success); }
 
 /* Workflow summary */
 .workflow-summary {
@@ -1147,9 +1326,21 @@ pre.code-block {
     margin-bottom: 0.3rem;
 }
 
+/* Code block wrap for long lines */
+.proc-code-wrap pre.code-block {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 /* =========================================================================
    Responsive
    ========================================================================= */
+
+@media (max-width: 960px) {
+    main, .tutorial {
+        padding: 1.5rem 0.75rem;
+    }
+}
 
 @media (max-width: 600px) {
     .form-row {

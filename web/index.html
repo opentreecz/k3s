@@ -30,20 +30,20 @@
         <!-- Workflow Intro Banner -->
         <!-- ============================================================ -->
         <div class="workflow-banner">
-            <div class="workflow-banner-step">
+            <a href="#config-form" class="workflow-banner-step">
                 <div class="workflow-banner-num">1</div>
                 <div><strong>Configure</strong><br><small>Fill in your cluster details below</small></div>
-            </div>
+            </a>
             <div class="workflow-banner-arrow">&rarr;</div>
-            <div class="workflow-banner-step">
+            <a href="#output-section" class="workflow-banner-step">
                 <div class="workflow-banner-num">2</div>
                 <div><strong>Generate</strong><br><small>Preview files &amp; download ZIP</small></div>
-            </div>
+            </a>
             <div class="workflow-banner-arrow">&rarr;</div>
-            <div class="workflow-banner-step">
+            <a href="#procedure-section" class="workflow-banner-step">
                 <div class="workflow-banner-num">3</div>
                 <div><strong>Deploy</strong><br><small>Follow the procedure to your servers</small></div>
-            </div>
+            </a>
         </div>
 
         <form id="config-form">
@@ -681,7 +681,7 @@ wicked show --verbose &lt;interface&gt; | grep DUID</pre>
             <!-- ============================================================ -->
             <!-- Actions -->
             <!-- ============================================================ -->
-            <section class="config-section actions" data-accent="k3s">
+            <section class="config-section actions actions-sticky" data-accent="k3s">
                 <div id="validation-banner" class="validation-banner" style="display:none;">
                     <span id="validation-text"></span>
                 </div>
@@ -743,6 +743,9 @@ python3 generate.py --vars generated/variables.yaml</pre>
         </p>
     </footer>
 
+    <!-- Back to top button -->
+    <button type="button" class="btn-top" id="btn-top" title="Back to top">&uarr;</button>
+
     <!-- Dependencies (CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/nunjucks@3.2.4/browser/nunjucks.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -751,5 +754,19 @@ python3 generate.py --vars generated/variables.yaml</pre>
     <!-- Application -->
     <script src="templates.js"></script>
     <script src="app.js"></script>
+
+    <!-- Back-to-top visibility -->
+    <script>
+    (function () {
+        var btn = document.getElementById("btn-top");
+        if (!btn) return;
+        window.addEventListener("scroll", function () {
+            btn.classList.toggle("visible", window.scrollY > 400);
+        });
+        btn.addEventListener("click", function () {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+    })();
+    </script>
 </body>
 </html>
