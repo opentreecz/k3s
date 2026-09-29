@@ -26,6 +26,26 @@
     </header>
 
     <main>
+        <!-- ============================================================ -->
+        <!-- Workflow Intro Banner -->
+        <!-- ============================================================ -->
+        <div class="workflow-banner">
+            <div class="workflow-banner-step">
+                <div class="workflow-banner-num">1</div>
+                <div><strong>Configure</strong><br><small>Fill in your cluster details below</small></div>
+            </div>
+            <div class="workflow-banner-arrow">&rarr;</div>
+            <div class="workflow-banner-step">
+                <div class="workflow-banner-num">2</div>
+                <div><strong>Generate</strong><br><small>Preview files &amp; download ZIP</small></div>
+            </div>
+            <div class="workflow-banner-arrow">&rarr;</div>
+            <div class="workflow-banner-step">
+                <div class="workflow-banner-num">3</div>
+                <div><strong>Deploy</strong><br><small>Follow the procedure to your servers</small></div>
+            </div>
+        </div>
+
         <form id="config-form">
             <!-- ============================================================ -->
             <!-- OS Configuration -->
@@ -667,6 +687,24 @@ wicked show --verbose &lt;interface&gt; | grep DUID</pre>
                 </div>
                 <button type="button" id="btn-generate" class="btn-primary">Generate Configuration</button>
                 <button type="button" id="btn-download" class="btn-download" disabled>Download ZIP Archive</button>
+
+                <details class="field-help" style="margin-top:1.25rem;text-align:left;">
+                    <summary>Prefer the command line? Generate locally with Python</summary>
+                    <div class="help-content">
+                        <p>You can produce the exact same configuration pack on your machine:</p>
+                        <pre>git clone https://github.com/opentreecz/k3s.git &amp;&amp; cd k3s
+pip install -r requirements.txt
+
+# Option A: edit variables.yaml directly
+vim variables.yaml
+python3 generate.py
+
+# Option B: reuse the variables.yaml from a downloaded ZIP
+unzip ~/Downloads/k3s-config-*.zip -d generated/
+python3 generate.py --vars generated/variables.yaml</pre>
+                        <p>Both methods populate the <code>generated/</code> directory with the same files (including <code>inventory.conf</code>). The deployment scripts work identically regardless of which method produced the configs.</p>
+                    </div>
+                </details>
             </section>
         </form>
 
@@ -681,6 +719,17 @@ wicked show --verbose &lt;interface&gt; | grep DUID</pre>
                 <div class="tab-content">
                     <pre id="file-preview"><code id="file-code"></code></pre>
                 </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Deploy to Your Servers (revealed after generation) -->
+        <!-- ============================================================ -->
+        <section id="procedure-section" class="config-section" data-accent="masters" style="display:none;">
+            <h2>Deploy to Your Servers</h2>
+            <p class="section-help">Your configuration is ready. Follow the steps below to deploy. Commands are pre-filled with your values. <a href="tutorial.html">Full tutorial with detailed explanations &rarr;</a></p>
+            <div id="procedure-content">
+                <!-- Populated dynamically by app.js buildDeploymentProcedure() -->
             </div>
         </section>
     </main>

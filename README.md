@@ -162,7 +162,13 @@ There are two ways to populate the `generated/` directory:
    unzip k3s-config-*.zip -d generated/
    ```
 
-Both methods produce the same directory structure. The deployment scripts (00-05) check for pre-generated configs in `generated/` first and use them directly if present; otherwise they fall back to inline generation from `inventory.conf`.
+Both methods produce the same directory structure, including `inventory.conf` (bash inventory used by deployment scripts) and `variables.yaml`. After extracting, copy the inventory to the repo root:
+
+```bash
+cp generated/inventory.conf inventory.conf
+```
+
+The deployment scripts (00-06) require `inventory.conf` at the project root. They also check for pre-generated configs in `generated/` and use them directly if present; otherwise they fall back to inline generation from `inventory.conf`.
 
 ### Usage
 
@@ -223,6 +229,7 @@ shellcheck -x scripts/*.sh
    to configure your cluster in the browser, download the ZIP, and extract it:
    ```bash
    unzip k3s-config-*.zip -d generated/
+   cp generated/inventory.conf inventory.conf
    ```
 
 6. Run the deployment:
