@@ -24,6 +24,8 @@ HAProxy and Keepalived run on all three master nodes. If the primary master fail
 
 The script uses pre-generated HAProxy and Keepalived configuration files from `generated/haproxy/haproxy.cfg` and `generated/keepalived/{hostname}/keepalived.conf` if available. These can be produced by `python3 generate.py` or by extracting a [Web UI](https://opentreecz.github.io/k3s/) ZIP into `generated/`. If no pre-generated configs are found, the script generates them inline from `inventory.conf`.
 
+If HAProxy/Keepalived packages are newly installed via `transactional-update`, the script **automatically reboots the affected masters and waits for SSH** before starting services. This is required on MicroOS/SLE Micro because packages are installed into a new Btrfs snapshot that only becomes active after a reboot.
+
 ## Manual Installation
 
 ### Install Packages

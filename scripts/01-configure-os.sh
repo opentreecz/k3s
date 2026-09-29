@@ -328,11 +328,60 @@ for node_entry in "${WORKER_NODES[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# Summary
+# Reboot all nodes to activate transactional-update changes
 # ---------------------------------------------------------------------------
-echo "============================================================"
-log_success "OS configuration complete for all nodes."
-log_warn "If packages were installed, nodes will need a reboot:"
-echo "  For each node that needs it, run:"
-echo "    ssh root@<node-ip> 'transactional-update reboot'"
-echo "============================================================"
+# On MicroOS/SLE Micro, packages installed via transactional-update only
+# become available after rebooting into the new snapshot. Without rebooting,
+# subsequent scripts (02-install-haproxy.sh, etc.) will fail to start
+# services because the binaries are not yet in the running system.
+#
+# Skip with: SKIP_REBOOT=1 ./scripts/01-configure-os.sh
+
+if [[ "${SKIP_REBOOT:-0}" == "1" ]]; then
+    echo ""
+    echo "============================================================"
+    log_success "OS configuration complete for all nodes."
+    log_warn "SKIP_REBOOT=1 set. Reboot nodes manually before proceeding:"
+    echo "  For each node, run:"
+    echo "    ssh root@<node-ip> 'systemctl reboot'"
+    echo "============================================================"
+else
+    echo ""
+    log_info "Rebooting all nodes to activate new packages..."
+    echo ""
+
+    ALL_NODES=()
+    for node_entry in "${MASTER_NODES[@]}"; do
+        ALL_NODES+=("${node_entry}")
+    done
+    for node_entry in "${WORKER_NODES[@]}"; do
+        ALL_NODES+=("${node_entry}")
+    done
+
+    # Trigger reboot on all nodes (SSH exits non-zero when connection drops)
+    for node_entry in "${ALL_NODES[@]}"; do
+        hostname=$(parse_node "${node_entry}" "hostname")
+        ipv4=$(parse_node "${node_entry}" "ipv4")
+        log_info "  Rebooting ${hostname} (${ipv4})..."
+        remote_exec "${ipv4}" "systemctl reboot" 2>/dev/null || true
+    done
+
+    # Brief pause for reboot to initiate
+    sleep 10
+
+    # Wait for all nodes to come back
+    for node_entry in "${ALL_NODES[@]}"; do
+        hostname=$(parse_node "${node_entry}" "hostname")
+        ipv4=$(parse_node "${node_entry}" "ipv4")
+        if wait_for_ssh "${ipv4}" 180; then
+            log_success "  ${hostname} (${ipv4}) is back"
+        else
+            log_error "  ${hostname} (${ipv4}) did not come back within 180s"
+        fi
+    done
+
+    echo ""
+    echo "============================================================"
+    log_success "OS configuration complete. All nodes rebooted and reachable."
+    echo "============================================================"
+fi

@@ -159,6 +159,12 @@ else
     HAPROXY_CFG=$(generate_haproxy_cfg)
 fi
 
+# Track which masters need a reboot (packages newly installed)
+declare -a REBOOT_MASTERS=()
+
+# ---------------------------------------------------------------------------
+# Phase 1: Install packages and deploy configs on each master
+# ---------------------------------------------------------------------------
 node_index=0
 for node_entry in "${MASTER_NODES[@]}"; do
     hostname=$(parse_node "${node_entry}" "hostname")
@@ -167,14 +173,21 @@ for node_entry in "${MASTER_NODES[@]}"; do
     log_info "Installing HAProxy + Keepalived on ${hostname} (${ipv4})..."
 
     # Check if packages are installed, install if not
-    remote_exec "${ipv4}" "
+    PKG_RESULT=$(remote_exec "${ipv4}" "
         if ! rpm -q haproxy &>/dev/null || ! rpm -q keepalived &>/dev/null; then
             transactional-update --non-interactive pkg install haproxy keepalived 2>/dev/null
             echo 'PACKAGES_INSTALLED=true'
         else
             echo 'PACKAGES_INSTALLED=false'
         fi
-    "
+    ")
+
+    if echo "${PKG_RESULT}" | grep -q "PACKAGES_INSTALLED=true"; then
+        log_info "  Packages installed (reboot required to activate)"
+        REBOOT_MASTERS+=("${node_entry}")
+    else
+        log_success "  Packages already present"
+    fi
 
     # Deploy HAProxy config
     remote_exec "${ipv4}" "mkdir -p /etc/haproxy"
@@ -196,18 +209,60 @@ for node_entry in "${MASTER_NODES[@]}"; do
     fi
     log_success "  Keepalived config deployed (priority: $((101 - node_index)))"
 
-    # Enable and start services
-    remote_exec "${ipv4}" "
-        systemctl enable haproxy 2>/dev/null || true
-        systemctl enable keepalived 2>/dev/null || true
-        systemctl restart haproxy 2>/dev/null || true
-        systemctl restart keepalived 2>/dev/null || true
-    "
-    log_success "  Services enabled and started"
-
     echo ""
     ((node_index++))
 done
+
+# ---------------------------------------------------------------------------
+# Phase 2: Reboot masters that had new packages installed
+# ---------------------------------------------------------------------------
+# On MicroOS/SLE Micro, transactional-update installs into a new snapshot.
+# The binaries are not available until the node reboots into that snapshot.
+
+if [[ ${#REBOOT_MASTERS[@]} -gt 0 ]]; then
+    log_info "Rebooting ${#REBOOT_MASTERS[@]} master(s) to activate new packages..."
+    echo ""
+
+    for node_entry in "${REBOOT_MASTERS[@]}"; do
+        hostname=$(parse_node "${node_entry}" "hostname")
+        ipv4=$(parse_node "${node_entry}" "ipv4")
+        log_info "  Rebooting ${hostname} (${ipv4})..."
+        remote_exec "${ipv4}" "systemctl reboot" 2>/dev/null || true
+    done
+
+    sleep 10
+
+    for node_entry in "${REBOOT_MASTERS[@]}"; do
+        hostname=$(parse_node "${node_entry}" "hostname")
+        ipv4=$(parse_node "${node_entry}" "ipv4")
+        if wait_for_ssh "${ipv4}" 180; then
+            log_success "  ${hostname} is back"
+        else
+            log_error "  ${hostname} did not come back within 180s"
+        fi
+    done
+    echo ""
+fi
+
+# ---------------------------------------------------------------------------
+# Phase 3: Enable and start services on all masters
+# ---------------------------------------------------------------------------
+log_info "Starting HAProxy and Keepalived on all masters..."
+echo ""
+
+for node_entry in "${MASTER_NODES[@]}"; do
+    hostname=$(parse_node "${node_entry}" "hostname")
+    ipv4=$(parse_node "${node_entry}" "ipv4")
+
+    remote_exec "${ipv4}" "
+        systemctl enable haproxy
+        systemctl enable keepalived
+        systemctl restart haproxy
+        systemctl restart keepalived
+    "
+    log_success "  ${hostname}: HAProxy + Keepalived started"
+done
+echo ""
 
 # ---------------------------------------------------------------------------
 # Verification

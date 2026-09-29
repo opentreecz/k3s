@@ -945,6 +945,7 @@
             "STORAGE_PROVIDER=" + storageProvider + " ./scripts/06-install-storage.sh"
         );
         html += '<p style="margin-top:0.5rem;font-size:0.82rem;color:var(--color-text-muted);">The token is generated and shared between scripts automatically (saved to <code>.k3s-token</code>). You don\'t need to copy it manually.</p>';
+        html += '<p style="font-size:0.82rem;color:var(--color-text-muted);">Scripts <code>01</code> and <code>02</code> automatically <strong>reboot nodes and wait for SSH</strong> after installing packages (required on MicroOS/SLE Micro to activate <code>transactional-update</code> snapshots). Set <code>SKIP_REBOOT=1</code> to disable.</p>';
         html += '</div>';
 
         // ----- Step 3: Manual fallback (collapsible) -----
@@ -972,7 +973,14 @@
             "# Install packages (requires reboot on MicroOS)\n" +
             "for IP in " + allIPs.join(" ") + "; do\n" +
             "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install open-iscsi nfs-client cryptsetup apparmor-parser\"\n" +
-            "  ssh " + sshUser + "@${IP} \"transactional-update reboot\"\n" +
+            "done\n\n" +
+            "# IMPORTANT: Reboot all nodes to activate packages (MicroOS requirement)\n" +
+            "for IP in " + allIPs.join(" ") + "; do\n" +
+            "  ssh " + sshUser + "@${IP} \"systemctl reboot\" || true\n" +
+            "done\n" +
+            "# Wait ~2-3 minutes for nodes to come back, then verify SSH:\n" +
+            "for IP in " + allIPs.join(" ") + "; do\n" +
+            "  until ssh " + sshUser + "@${IP} true 2>/dev/null; do sleep 5; done && echo \"${IP} is back\"\n" +
             "done"
         );
 
@@ -982,9 +990,15 @@
             "# Install packages on masters\n" +
             "for IP in " + masterIPs.join(" ") + "; do\n" +
             "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install haproxy keepalived\"\n" +
-            "  ssh " + sshUser + "@${IP} \"transactional-update reboot\"\n" +
             "done\n\n" +
-            "# Wait for reboot, then deploy configs\n" +
+            "# Reboot masters to activate packages\n" +
+            "for IP in " + masterIPs.join(" ") + "; do\n" +
+            "  ssh " + sshUser + "@${IP} \"systemctl reboot\" || true\n" +
+            "done\n" +
+            "# Wait for masters to come back\n" +
+            "for IP in " + masterIPs.join(" ") + "; do\n" +
+            "  until ssh " + sshUser + "@${IP} true 2>/dev/null; do sleep 5; done && echo \"${IP} is back\"\n" +
+            "done\n\n" +
             "for IP in " + masterIPs.join(" ") + "; do\n" +
             "  scp generated/haproxy/haproxy.cfg " + sshUser + "@${IP}:/etc/haproxy/haproxy.cfg\n" +
             "done\n\n" +
