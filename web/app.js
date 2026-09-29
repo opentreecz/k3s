@@ -758,10 +758,16 @@
 
             // Build and show deployment procedure
             buildDeploymentProcedure(context);
-            document.getElementById("procedure-section").style.display = "block";
+            var procSection = document.getElementById("procedure-section");
+            procSection.style.display = "block";
 
-            // Scroll to output
+            // Scroll to output, then flash procedure after a delay
             outputSection.scrollIntoView({ behavior: "smooth" });
+            setTimeout(function () {
+                procSection.style.outline = "2px solid var(--color-success)";
+                procSection.style.outlineOffset = "2px";
+                setTimeout(function () { procSection.style.outline = "none"; }, 2000);
+            }, 1500);
         } catch (err) {
             alert("Error generating configuration: " + err.message);
             console.error(err);
@@ -802,10 +808,7 @@
         showFileContent(fileName);
     }
 
-    function showFileContent(fileName) {
-        var code = document.getElementById("file-code");
-        code.textContent = generatedFiles[fileName] || "";
-    }
+    // showFileContent is defined below in the Syntax Highlighter section
 
     // =========================================================================
     // Download Handler
@@ -858,10 +861,12 @@
         }
     }
 
-    // Delegated click handler for copy buttons
+    // Delegated click handler for copy buttons (works on both pages)
     document.addEventListener("click", function (e) {
         if (e.target.classList.contains("btn-copy")) {
-            var pre = e.target.closest(".proc-code-wrap").querySelector("pre");
+            var pre = e.target.closest(".proc-code-wrap, .code-block-wrap")
+                ? e.target.closest(".proc-code-wrap, .code-block-wrap").querySelector("pre")
+                : null;
             if (pre) {
                 copyToClipboard(pre.textContent);
                 var orig = e.target.textContent;
@@ -872,13 +877,125 @@
     });
 
     // =========================================================================
-    // Build Deployment Procedure (value-filled)
+    // Lightweight Syntax Highlighter (no external dependency)
     // =========================================================================
 
-    function codeBlock(code) {
+    function highlightCode(code, lang) {
+        var esc = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        if (lang === "bash" || lang === "sh") {
+            // Comments
+            esc = esc.replace(/(#[^\n]*)/g, '<span class="hl-comment">$1</span>');
+            // Strings (double-quoted, avoiding escaped quotes)
+            esc = esc.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, '<span class="hl-string">"$1"</span>');
+            // Strings (single-quoted)
+            esc = esc.replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, '<span class="hl-string">\'$1\'</span>');
+            // Flags --flag / -f
+            esc = esc.replace(/(\s)(--?[a-zA-Z][\w-]*)/g, '$1<span class="hl-flag">$2</span>');
+            // Variables $VAR ${VAR}
+            esc = esc.replace(/(\$\{[^}]+\}|\$[A-Za-z_]\w*)/g, '<span class="hl-var">$1</span>');
+        } else if (lang === "yaml" || lang === "yml") {
+            // Comments
+            esc = esc.replace(/(#[^\n]*)/g, '<span class="hl-comment">$1</span>');
+            // Keys (start of line, word followed by colon)
+            esc = esc.replace(/^(\s*)([\w.-]+)(:)/gm, '$1<span class="hl-key">$2</span>$3');
+            // Strings
+            esc = esc.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, '<span class="hl-string">"$1"</span>');
+            // Booleans / null
+            esc = esc.replace(/\b(true|false|null)\b/g, '<span class="hl-bool">$1</span>');
+        } else if (lang === "json") {
+            // Keys
+            esc = esc.replace(/"([^"]+)"(\s*:)/g, '<span class="hl-key">"$1"</span>$2');
+            // String values
+            esc = esc.replace(/:(\s*)"([^"\\]*(\\.[^"\\]*)*)"/g, ':$1<span class="hl-string">"$2"</span>');
+            // Booleans / null / numbers
+            esc = esc.replace(/\b(true|false|null|\d+)\b/g, '<span class="hl-bool">$1</span>');
+        } else if (lang === "conf" || lang === "cfg") {
+            // Comments (# and !)
+            esc = esc.replace(/(^[#!][^\n]*)/gm, '<span class="hl-comment">$1</span>');
+            // Section headers
+            esc = esc.replace(/^(\s*)(global|defaults|frontend|backend|listen|vrrp_\w+|global_defs)\b/gm,
+                '$1<span class="hl-key">$2</span>');
+        }
+        return esc;
+    }
+
+    function detectLang(filename) {
+        if (/\.(ya?ml)$/i.test(filename)) return "yaml";
+        if (/\.(json)$/i.test(filename)) return "json";
+        if (/\.(sh|bash)$/i.test(filename) || /inventory\.conf$/i.test(filename)) return "bash";
+        if (/\.(cfg|conf)$/i.test(filename)) return "conf";
+        if (/checklist\.md$/i.test(filename)) return "";
+        if (/hosts$/i.test(filename)) return "conf";
+        return "";
+    }
+
+    // Override showFileContent to use highlighter
+    function showFileContent(fileName) {
+        var code = document.getElementById("file-code");
+        var lang = detectLang(fileName);
+        if (lang) {
+            code.innerHTML = highlightCode(generatedFiles[fileName] || "", lang);
+        } else {
+            code.textContent = generatedFiles[fileName] || "";
+        }
+    }
+
+    // =========================================================================
+    // Build Deployment Procedure (value-filled, with checkboxes + deploy.sh)
+    // =========================================================================
+
+    var PROC_STORAGE_KEY = "k3s-deploy-progress";
+
+    function getProcProgress() {
+        try {
+            return JSON.parse(localStorage.getItem(PROC_STORAGE_KEY)) || {};
+        } catch (e) { return {}; }
+    }
+
+    function saveProcProgress(data) {
+        try { localStorage.setItem(PROC_STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+    }
+
+    function updateProgressBar() {
+        var checks = document.querySelectorAll(".proc-check");
+        if (checks.length === 0) return;
+        var done = 0;
+        checks.forEach(function (cb) { if (cb.checked) done++; });
+        var pct = Math.round((done / checks.length) * 100);
+        var bar = document.getElementById("proc-progress-fill");
+        var label = document.getElementById("proc-progress-label");
+        if (bar) bar.style.width = pct + "%";
+        if (label) label.textContent = done + "/" + checks.length + " steps (" + pct + "%)";
+    }
+
+    // Delegated checkbox handler
+    document.addEventListener("change", function (e) {
+        if (e.target.classList.contains("proc-check")) {
+            var progress = getProcProgress();
+            progress[e.target.getAttribute("data-step")] = e.target.checked;
+            saveProcProgress(progress);
+            updateProgressBar();
+        }
+    });
+
+    function procStep(stepId, title, body, tutorialAnchor) {
+        var progress = getProcProgress();
+        var checked = progress[stepId] ? " checked" : "";
+        var link = tutorialAnchor ? ' <a href="tutorial.html#' + tutorialAnchor + '" class="proc-tutorial-link" title="Detailed guide">guide &rarr;</a>' : "";
+        return '<div class="proc-phase" id="proc-' + stepId + '">' +
+            '<h3>' +
+            '<label class="proc-check-label"><input type="checkbox" class="proc-check" data-step="' + stepId + '"' + checked + '>' +
+            '<span class="proc-num">' + stepId + '</span></label> ' +
+            title + link +
+            '</h3>' +
+            body +
+            '</div>';
+    }
+
+    function codeBlock(code, lang) {
+        var highlighted = (lang === "bash") ? highlightCode(code, "bash") : code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         return '<div class="proc-code-wrap"><button type="button" class="btn-copy" title="Copy to clipboard">Copy</button><pre class="code-block">' +
-            code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") +
-            '</pre></div>';
+            highlighted + '</pre></div>';
     }
 
     function buildDeploymentProcedure(ctx) {
@@ -891,189 +1008,152 @@
         var storageProvider = ctx.storage.provider;
         var domain = ctx.network.domain;
         var firstMaster = m[0];
+        var secondMaster = m.length > 1 ? m[1] : m[0];
 
-        // Build IP lists for loops
         var masterIPs = m.map(function (n) { return n.ipv4; });
         var workerIPs = w.map(function (n) { return n.ipv4; });
         var allIPs = masterIPs.concat(workerIPs);
 
         var html = "";
 
-        // ----- Step 0: Prep deployment host -----
-        html += '<div class="proc-phase">';
-        html += '<h3><span class="proc-num">0</span> Prepare Your Deployment Host</h3>';
-        html += '<p>You need a machine (laptop, workstation, jump host) with SSH access to all nodes.</p>';
-        html += codeBlock(
-            "# Clone the repository\n" +
-            "git clone https://github.com/opentreecz/k3s.git && cd k3s\n" +
-            "pip install -r requirements.txt\n\n" +
-            "# Copy your SSH key to each node (first-time only)\n" +
-            allIPs.map(function (ip) { return "ssh-copy-id" + (sshPort !== 22 ? " -p " + sshPort : "") + " " + sshUser + "@" + ip; }).join("\n")
-        );
-        html += '</div>';
+        // Progress bar
+        html += '<div class="proc-progress"><div class="proc-progress-bar"><div class="proc-progress-fill" id="proc-progress-fill"></div></div><span class="proc-progress-label" id="proc-progress-label">0/5 steps (0%)</span></div>';
 
-        // ----- Step 1: Import the pack -----
-        html += '<div class="proc-phase">';
-        html += '<h3><span class="proc-num">1</span> Download ZIP &amp; Import the Configuration Pack</h3>';
-        html += '<p>Click <strong>"Download ZIP Archive"</strong> above, then extract into the repo:</p>';
-        html += codeBlock(
-            "# Extract the ZIP into the generated/ directory\n" +
-            "unzip ~/Downloads/k3s-config-*.zip -d generated/\n\n" +
-            "# Copy the inventory file to the repo root (required by deployment scripts)\n" +
-            "cp generated/inventory.conf inventory.conf"
-        );
-        html += '</div>';
+        // ----- Step 1: Prep deployment host -----
+        html += procStep("1", "Prepare Your Deployment Host",
+            '<p>You need a machine with SSH access to all nodes.</p>' +
+            codeBlock(
+                "# Clone the repository\n" +
+                "git clone https://github.com/opentreecz/k3s.git && cd k3s\n" +
+                "pip install -r requirements.txt\n\n" +
+                "# Copy your SSH key to each node (first-time only)\n" +
+                allIPs.map(function (ip) { return "ssh-copy-id" + (sshPort !== 22 ? " -p " + sshPort : "") + " " + sshUser + "@" + ip; }).join("\n"),
+            "bash"),
+        "prerequisites");
 
-        // ----- Step 2: Automated deploy (primary) -----
-        html += '<div class="proc-phase proc-primary">';
-        html += '<h3><span class="proc-num">2</span> Deploy to Servers <span class="proc-tag proc-tag-rec">Recommended: Automated</span></h3>';
-        html += '<p>Run the scripts in order. They SSH into each node and deploy everything automatically using the configs you generated.</p>';
-        html += codeBlock(
-            "# Pre-flight validation (checks SSH, IPs, OS, configs)\n" +
-            "./scripts/00-validate-environment.sh\n\n" +
-            "# Configure OS on all nodes (sysctl, hosts, SSH, firewall, packages)\n" +
-            "./scripts/01-configure-os.sh\n\n" +
-            "# Install HAProxy + Keepalived on masters\n" +
-            "./scripts/02-install-haproxy.sh\n\n" +
-            "# Bootstrap first K3s server on " + firstMaster.hostname + " (" + firstMaster.ipv4 + ")\n" +
-            "./scripts/03-install-k3s-first.sh\n\n" +
-            "# Join " + (m.length > 1 ? m.slice(1).map(function (n) { return n.hostname; }).join(", ") : "remaining masters") + "\n" +
-            "./scripts/04-install-k3s-servers.sh\n\n" +
-            "# Join worker nodes: " + w.map(function (n) { return n.hostname; }).join(", ") + "\n" +
-            "./scripts/05-install-k3s-agents.sh\n\n" +
-            "# Install persistent storage" + (storageProvider !== "none" ? " (" + storageProvider + ")" : "") + "\n" +
-            "STORAGE_PROVIDER=" + storageProvider + " ./scripts/06-install-storage.sh"
-        );
-        html += '<p style="margin-top:0.5rem;font-size:0.82rem;color:var(--color-text-muted);">The token is generated and shared between scripts automatically (saved to <code>.k3s-token</code>). You don\'t need to copy it manually.</p>';
-        html += '<p style="font-size:0.82rem;color:var(--color-text-muted);">Scripts <code>01</code> and <code>02</code> automatically <strong>reboot nodes and wait for SSH</strong> after installing packages (required on MicroOS/SLE Micro to activate <code>transactional-update</code> snapshots). Set <code>SKIP_REBOOT=1</code> to disable.</p>';
-        html += '</div>';
+        // ----- Step 2: Import the pack -----
+        html += procStep("2", "Download ZIP &amp; Import the Pack",
+            '<p>Click <strong>"Download ZIP Archive"</strong> above, then extract into the repo:</p>' +
+            codeBlock(
+                "# Extract the ZIP\nunzip ~/Downloads/k3s-config-*.zip -d generated/\n\n" +
+                "# Copy inventory to repo root (required by scripts)\ncp generated/inventory.conf inventory.conf",
+            "bash"),
+        "phase2");
 
-        // ----- Step 3: Manual fallback (collapsible) -----
+        // ----- Step 3: Automated deploy (primary) -----
+        var deployCmd = "# Pre-flight validation\n./scripts/00-validate-environment.sh\n\n" +
+            "# Configure OS (sysctl, hosts, SSH, firewall, packages + auto-reboot)\n./scripts/01-configure-os.sh\n\n" +
+            "# Install HAProxy + Keepalived on masters (auto-reboot if needed)\n./scripts/02-install-haproxy.sh\n\n" +
+            "# Bootstrap first K3s server (" + firstMaster.hostname + ")\n./scripts/03-install-k3s-first.sh\n\n" +
+            "# Join " + (m.length > 1 ? m.slice(1).map(function (n) { return n.hostname; }).join(", ") : "remaining masters") + "\n./scripts/04-install-k3s-servers.sh\n\n" +
+            "# Join workers: " + w.map(function (n) { return n.hostname; }).join(", ") + "\n./scripts/05-install-k3s-agents.sh";
+
+        if (storageProvider !== "none") {
+            deployCmd += "\n\n# Install " + storageProvider + " storage\nSTORAGE_PROVIDER=" + storageProvider + " ./scripts/06-install-storage.sh";
+        }
+
+        html += procStep("3", 'Deploy to Servers <span class="proc-tag proc-tag-rec">Automated</span>',
+            '<p>Run the scripts in order. They SSH into each node and deploy everything using your generated configs.</p>' +
+            '<div class="proc-primary">' + codeBlock(deployCmd, "bash") + '</div>' +
+            '<p class="proc-hint">Token is auto-generated and shared via <code>.k3s-token</code>. Scripts <code>01</code>/<code>02</code> auto-reboot nodes after package install (<code>SKIP_REBOOT=1</code> to disable).</p>' +
+            '<button type="button" id="btn-deploy-sh" class="btn-deploy-sh" title="Download as a runnable shell script">Download deploy.sh</button>',
+        "phase5");
+
+        // ----- Alternative: Manual (collapsible) -----
         html += '<details class="proc-phase-details">';
         html += '<summary>Alternative: Manual Per-Node Deployment</summary>';
         html += '<div class="proc-phase">';
-        html += '<p>If you prefer to deploy manually instead of using the scripts, run these commands from your deployment host.</p>';
+        html += '<p>If you prefer manual control, run these commands from your deployment host.</p>';
 
-        // OS config
-        html += '<h4>3a. OS Configuration (all nodes)</h4>';
+        html += '<h4>OS Configuration (all nodes)</h4>';
         html += codeBlock(
             "# Set hostnames\n" +
-            allNodes.map(function (n) {
-                return "ssh " + sshUser + "@" + n.ipv4 + " \"hostnamectl set-hostname " + n.hostname + "." + domain + "\"";
-            }).join("\n") + "\n\n" +
-            "# Deploy sysctl, hosts, SSH keys to all nodes\n" +
-            "for IP in " + allIPs.join(" ") + "; do\n" +
+            allNodes.map(function (n) { return "ssh " + sshUser + "@" + n.ipv4 + " \"hostnamectl set-hostname " + n.hostname + "." + domain + "\""; }).join("\n") + "\n\n" +
+            "# Deploy sysctl, hosts, SSH keys\nfor IP in " + allIPs.join(" ") + "; do\n" +
             "  scp generated/os/sysctl-k3s.conf " + sshUser + "@${IP}:/etc/sysctl.d/90-k3s.conf\n" +
             "  ssh " + sshUser + "@${IP} \"sysctl --system\"\n" +
             "  scp generated/network/hosts " + sshUser + "@${IP}:/tmp/k3s-hosts\n" +
             "  ssh " + sshUser + "@${IP} \"cat /tmp/k3s-hosts >> /etc/hosts\"\n" +
             "  scp generated/os/ssh-authorized-keys " + sshUser + "@${IP}:/root/.ssh/authorized_keys\n" +
-            "  ssh " + sshUser + "@${IP} \"chmod 600 /root/.ssh/authorized_keys\"\n" +
-            "done\n\n" +
-            "# Install packages (requires reboot on MicroOS)\n" +
-            "for IP in " + allIPs.join(" ") + "; do\n" +
-            "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install open-iscsi nfs-client cryptsetup apparmor-parser\"\n" +
-            "done\n\n" +
-            "# IMPORTANT: Reboot all nodes to activate packages (MicroOS requirement)\n" +
-            "for IP in " + allIPs.join(" ") + "; do\n" +
-            "  ssh " + sshUser + "@${IP} \"systemctl reboot\" || true\n" +
-            "done\n" +
-            "# Wait ~2-3 minutes for nodes to come back, then verify SSH:\n" +
-            "for IP in " + allIPs.join(" ") + "; do\n" +
-            "  until ssh " + sshUser + "@${IP} true 2>/dev/null; do sleep 5; done && echo \"${IP} is back\"\n" +
-            "done"
-        );
+            "  ssh " + sshUser + "@${IP} \"chmod 600 /root/.ssh/authorized_keys\"\ndone\n\n" +
+            "# Install packages + reboot\nfor IP in " + allIPs.join(" ") + "; do\n" +
+            "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install open-iscsi nfs-client cryptsetup apparmor-parser\"\ndone\n" +
+            "for IP in " + allIPs.join(" ") + "; do ssh " + sshUser + "@${IP} \"systemctl reboot\" || true; done\n" +
+            "sleep 30\nfor IP in " + allIPs.join(" ") + "; do\n  until ssh " + sshUser + "@${IP} true 2>/dev/null; do sleep 5; done && echo \"${IP} ready\"\ndone",
+        "bash");
 
-        // HAProxy + Keepalived
-        html += '<h4>3b. HAProxy &amp; Keepalived (masters only)</h4>';
+        html += '<h4>HAProxy &amp; Keepalived (masters only)</h4>';
         html += codeBlock(
-            "# Install packages on masters\n" +
             "for IP in " + masterIPs.join(" ") + "; do\n" +
-            "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install haproxy keepalived\"\n" +
-            "done\n\n" +
-            "# Reboot masters to activate packages\n" +
-            "for IP in " + masterIPs.join(" ") + "; do\n" +
-            "  ssh " + sshUser + "@${IP} \"systemctl reboot\" || true\n" +
-            "done\n" +
-            "# Wait for masters to come back\n" +
-            "for IP in " + masterIPs.join(" ") + "; do\n" +
-            "  until ssh " + sshUser + "@${IP} true 2>/dev/null; do sleep 5; done && echo \"${IP} is back\"\n" +
-            "done\n\n" +
-            "for IP in " + masterIPs.join(" ") + "; do\n" +
-            "  scp generated/haproxy/haproxy.cfg " + sshUser + "@${IP}:/etc/haproxy/haproxy.cfg\n" +
-            "done\n\n" +
-            "# Deploy per-node Keepalived (each master has a unique config!)\n" +
-            m.map(function (n) {
-                return "scp generated/keepalived/" + n.hostname + "/keepalived.conf " + sshUser + "@" + n.ipv4 + ":/etc/keepalived/keepalived.conf";
-            }).join("\n") + "\n\n" +
-            "# Enable non-local bind + start services\n" +
-            "for IP in " + masterIPs.join(" ") + "; do\n" +
-            "  ssh " + sshUser + "@${IP} 'echo \"net.ipv4.ip_nonlocal_bind = 1\" > /etc/sysctl.d/90-haproxy.conf'\n" +
-            "  ssh " + sshUser + "@${IP} 'echo \"net.ipv6.ip_nonlocal_bind = 1\" >> /etc/sysctl.d/90-haproxy.conf'\n" +
-            "  ssh " + sshUser + "@${IP} \"sysctl --system && systemctl enable --now haproxy keepalived\"\n" +
-            "done"
-        );
+            "  ssh " + sshUser + "@${IP} \"transactional-update --non-interactive pkg install haproxy keepalived\"\ndone\n" +
+            "for IP in " + masterIPs.join(" ") + "; do ssh " + sshUser + "@${IP} \"systemctl reboot\" || true; done\n" +
+            "sleep 30\nfor IP in " + masterIPs.join(" ") + "; do\n  until ssh " + sshUser + "@${IP} true 2>/dev/null; do sleep 5; done && echo \"${IP} ready\"\ndone\n\n" +
+            "# Deploy configs\nfor IP in " + masterIPs.join(" ") + "; do\n  scp generated/haproxy/haproxy.cfg " + sshUser + "@${IP}:/etc/haproxy/haproxy.cfg\ndone\n" +
+            m.map(function (n) { return "scp generated/keepalived/" + n.hostname + "/keepalived.conf " + sshUser + "@" + n.ipv4 + ":/etc/keepalived/keepalived.conf"; }).join("\n") + "\n\n" +
+            "# Start services\nfor IP in " + masterIPs.join(" ") + "; do\n" +
+            "  ssh " + sshUser + "@${IP} \"sysctl -w net.ipv4.ip_nonlocal_bind=1 net.ipv6.ip_nonlocal_bind=1\"\n" +
+            "  ssh " + sshUser + "@${IP} \"systemctl enable --now haproxy keepalived\"\ndone",
+        "bash");
 
-        // K3s servers
-        html += '<h4>3c. K3s Servers</h4>';
+        html += '<h4>K3s Servers</h4>';
         html += codeBlock(
-            "# Bootstrap first server (" + firstMaster.hostname + ")\n" +
             "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"mkdir -p /etc/rancher/k3s\"\n" +
             "scp generated/k3s/" + firstMaster.hostname + "/config.yaml " + sshUser + "@" + firstMaster.ipv4 + ":/etc/rancher/k3s/config.yaml\n" +
             "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server' sh -s -\"\n\n" +
-            "# Wait ~60s for first server to become Ready, then join remaining masters\n" +
+            "# Wait ~60s, then join remaining masters\n" +
             m.slice(1).map(function (n) {
                 return "ssh " + sshUser + "@" + n.ipv4 + " \"mkdir -p /etc/rancher/k3s\"\n" +
                     "scp generated/k3s/" + n.hostname + "/config.yaml " + sshUser + "@" + n.ipv4 + ":/etc/rancher/k3s/config.yaml\n" +
                     "ssh " + sshUser + "@" + n.ipv4 + " \"curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server' sh -s -\"";
-            }).join("\n\n")
-        );
+            }).join("\n\n"),
+        "bash");
 
-        // K3s agents
         if (w.length > 0) {
-            html += '<h4>3d. K3s Workers</h4>';
+            html += '<h4>K3s Workers</h4>';
             html += codeBlock(
                 w.map(function (n) {
                     return "ssh " + sshUser + "@" + n.ipv4 + " \"mkdir -p /etc/rancher/k3s\"\n" +
                         "scp generated/k3s/" + n.hostname + "/config.yaml " + sshUser + "@" + n.ipv4 + ":/etc/rancher/k3s/config.yaml\n" +
                         "ssh " + sshUser + "@" + n.ipv4 + " \"curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='agent' sh -s -\"";
-                }).join("\n\n")
-            );
+                }).join("\n\n"),
+            "bash");
         }
-
         html += '</div></details>';
 
         // ----- Step 4: kubeconfig + verify -----
-        html += '<div class="proc-phase">';
-        html += '<h3><span class="proc-num">4</span> Get kubeconfig &amp; Verify</h3>';
-        html += codeBlock(
-            "# Copy kubeconfig from first master\n" +
-            "scp " + sshUser + "@" + firstMaster.ipv4 + ":/etc/rancher/k3s/k3s.yaml ~/.kube/config\n\n" +
-            "# Point it at the VIP instead of localhost\n" +
-            "sed -i 's|https://127.0.0.1:6443|https://" + vip + ":6443|g' ~/.kube/config\n\n" +
-            "# Verify the cluster\n" +
-            "kubectl get nodes -o wide\n" +
-            "curl -k https://" + vip + ":6443/version"
-        );
-        html += '<p style="margin-top:0.5rem;font-size:0.82rem;color:var(--color-text-muted);">All nodes should show <strong>Ready</strong>. The VIP (<code>' + vip + '</code>) should return the K3s API version.</p>';
-        html += '</div>';
+        html += procStep("4", "Get kubeconfig &amp; Verify",
+            codeBlock(
+                "# Copy kubeconfig from first master\nscp " + sshUser + "@" + firstMaster.ipv4 + ":/etc/rancher/k3s/k3s.yaml ~/.kube/config\n\n" +
+                "# Point it at the VIP\nsed -i 's|https://127.0.0.1:6443|https://" + vip + ":6443|g' ~/.kube/config\n\n" +
+                "# Verify\nkubectl get nodes -o wide\ncurl -k https://" + vip + ":6443/version",
+            "bash") +
+            '<p class="proc-hint">All nodes should show <strong>Ready</strong>. The VIP (<code>' + vip + '</code>) should return the K3s version.</p>',
+        "verification");
 
         // ----- Step 5: VIP failover test -----
-        html += '<div class="proc-phase">';
-        html += '<h3><span class="proc-num">5</span> Test VIP Failover</h3>';
-        html += codeBlock(
-            "# Stop HAProxy on the primary master to trigger failover\n" +
-            "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"systemctl stop haproxy\"\n\n" +
-            "# Verify VIP migrated to another master\n" +
-            "ssh " + sshUser + "@" + m[1].ipv4 + " \"ip addr show | grep " + vip + "\"\n\n" +
-            "# API should still work through the VIP\n" +
-            "curl -k https://" + vip + ":6443/version\n\n" +
-            "# Restore HAProxy on first master\n" +
-            "ssh " + sshUser + "@" + firstMaster.ipv4 + " \"systemctl start haproxy\""
-        );
-        html += '</div>';
+        html += procStep("5", "Test VIP Failover",
+            codeBlock(
+                "# Stop HAProxy on primary master to trigger failover\nssh " + sshUser + "@" + firstMaster.ipv4 + " \"systemctl stop haproxy\"\n\n" +
+                "# Verify VIP migrated\nssh " + sshUser + "@" + secondMaster.ipv4 + " \"ip addr show | grep " + vip + "\"\n\n" +
+                "# API still works through VIP\ncurl -k https://" + vip + ":6443/version\n\n" +
+                "# Restore\nssh " + sshUser + "@" + firstMaster.ipv4 + " \"systemctl start haproxy\"",
+            "bash"),
+        "verification");
 
         document.getElementById("procedure-content").innerHTML = html;
+
+        // Restore progress bar state
+        updateProgressBar();
+
+        // Wire deploy.sh download
+        var btnSh = document.getElementById("btn-deploy-sh");
+        if (btnSh) {
+            btnSh.addEventListener("click", function () {
+                var script = "#!/bin/bash\n# K3s Cluster Deployment Script\n# Generated by K3s Configuration Generator\n# Run from the repository root after: unzip k3s-config-*.zip -d generated/ && cp generated/inventory.conf inventory.conf\n\nset -euo pipefail\n\n" + deployCmd.replace(/^#/gm, "\n#") + "\n\necho ''\necho 'Deployment complete! Get your kubeconfig:'\necho '  scp " + sshUser + "@" + firstMaster.ipv4 + ":/etc/rancher/k3s/k3s.yaml ~/.kube/config'\necho \"  sed -i 's|https://127.0.0.1:6443|https://" + vip + ":6443|g' ~/.kube/config\"\necho '  kubectl get nodes -o wide'\n";
+                var blob = new Blob([script], { type: "text/x-shellscript" });
+                saveAs(blob, "deploy.sh");
+            });
+        }
     }
 
 })();

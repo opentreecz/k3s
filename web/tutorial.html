@@ -30,21 +30,22 @@
             <h2>Table of Contents</h2>
             <nav class="toc">
                 <ol>
-                    <li><a href="#overview">Overview &mdash; What This Tool Does</a></li>
+                    <li><a href="#overview">Overview</a></li>
                     <li><a href="#prerequisites">Prerequisites</a></li>
-                    <li><a href="#phase1">Phase 1 &mdash; Generate Configuration Files</a></li>
-                    <li><a href="#phase2">Phase 2 &mdash; Download and Extract the ZIP</a></li>
-                    <li><a href="#generated-files">Understanding the Generated Files (All 27 Files)</a></li>
-                    <li><a href="#phase3">Phase 3 &mdash; Network Preparation (Router/DHCP)</a></li>
+                    <li><a href="#phase1">Phase 1 &mdash; Generate Configuration</a></li>
+                    <li><a href="#phase2">Phase 2 &mdash; Download &amp; Extract</a></li>
+                    <li><a href="#generated-files">Generated Files Reference</a></li>
+                    <li><a href="#phase3">Phase 3 &mdash; Network Preparation</a></li>
                     <li><a href="#phase4">Phase 4 &mdash; Install openSUSE MicroOS</a></li>
                     <li><a href="#phase5">Phase 5 &mdash; OS Configuration</a></li>
-                    <li><a href="#phase6">Phase 6 &mdash; Deploy HAProxy &amp; Keepalived</a></li>
-                    <li><a href="#phase7">Phase 7 &mdash; Bootstrap K3s Cluster</a></li>
-                    <li><a href="#phase8">Phase 8 &mdash; Add Worker Nodes</a></li>
-                    <li><a href="#phase9">Phase 9 &mdash; Install Persistent Storage</a></li>
-                    <li><a href="#verification">Final Verification</a></li>
-                    <li><a href="#recovery">Recovery &amp; Re-Running Steps</a></li>
+                    <li><a href="#phase6">Phase 6 &mdash; HAProxy &amp; Keepalived</a></li>
+                    <li><a href="#phase7">Phase 7 &mdash; Bootstrap K3s</a></li>
+                    <li><a href="#phase8">Phase 8 &mdash; Add Workers</a></li>
+                    <li><a href="#phase9">Phase 9 &mdash; Persistent Storage</a></li>
+                    <li><a href="#verification">Verification</a></li>
+                    <li><a href="#recovery">Recovery</a></li>
                     <li><a href="#troubleshooting">Troubleshooting</a></li>
+                    <li><a href="#workflow-summary">Workflow Summary</a></li>
                 </ol>
             </nav>
         </section>
@@ -53,10 +54,10 @@
         <!-- Overview -->
         <!-- ============================================================ -->
         <section id="overview" class="config-section" data-accent="k3s">
-            <h2>1. Overview &mdash; What This Tool Does</h2>
+            <h2>Overview</h2>
             <p>The <strong>K3s Cluster Configuration Generator</strong> is a browser-based tool that produces all the configuration files needed to deploy a highly available K3s Kubernetes cluster on baremetal servers.</p>
 
-            <p>You fill in a form with your network details, node IPs, MAC addresses, and preferences. The tool generates <strong>26 configuration files</strong> bundled as a ZIP archive. These files cover:</p>
+            <p>You fill in a form with your network details, node IPs, MAC addresses, and preferences. The tool generates <strong>~27 configuration files</strong> (varies with IPv6 mode and node count) bundled as a ZIP archive. These files cover:</p>
 
             <ul class="feature-list">
                 <li><strong>Network configuration</strong> &mdash; DHCP static leases, DNS entries, /etc/hosts, router checklist</li>
@@ -102,7 +103,7 @@
         <!-- Prerequisites -->
         <!-- ============================================================ -->
         <section id="prerequisites" class="config-section" data-accent="os">
-            <h2>2. Prerequisites</h2>
+            <h2>Prerequisites</h2>
 
             <h3>Hardware Requirements</h3>
             <table class="info-table">
@@ -178,7 +179,7 @@
         <!-- Phase 1: Generate Configuration -->
         <!-- ============================================================ -->
         <section id="phase1" class="config-section" data-accent="ssh">
-            <h2>3. Phase 1 &mdash; Generate Configuration Files</h2>
+            <h2>Phase 1 &mdash; Generate Configuration</h2>
 
             <div class="step">
                 <div class="step-number">1</div>
@@ -296,7 +297,7 @@
         <!-- Phase 2: Download and Extract -->
         <!-- ============================================================ -->
         <section id="phase2" class="config-section" data-accent="disk">
-            <h2>4. Phase 2 &mdash; Download and Extract the ZIP</h2>
+            <h2>Phase 2 &mdash; Download &amp; Extract</h2>
 
             <div class="callout callout-info">
                 <strong>Already used the web generator?</strong> If you filled in the form on the <a href="index.html">main page</a>, the deployment procedure shown there is pre-filled with your actual values. You can follow it directly. This tutorial covers the same steps with generic examples for reference.
@@ -404,8 +405,11 @@ find generated/ -type f | sort
         <!-- Understanding Generated Files -->
         <!-- ============================================================ -->
         <section id="generated-files" class="config-section" data-accent="storage">
-            <h2>5. Understanding the Generated Files (All 27 Files)</h2>
-            <p>Here is what each generated file does and where it needs to be deployed:</p>
+            <h2>Generated Files Reference</h2>
+            <details class="field-help" style="margin-bottom:0;" open>
+                <summary>Click to expand/collapse the full file reference (~27 files)</summary>
+                <div class="help-content" style="padding:0;">
+            <p style="padding:0.75rem 0.9rem 0;">Here is what each generated file does and where it needs to be deployed:</p>
 
             <h3>Network Configuration (<code>network/</code>)</h3>
             <table class="info-table">
@@ -574,13 +578,15 @@ find generated/ -type f | sort
                     </tr>
                 </tbody>
             </table>
+                </div>
+            </details>
         </section>
 
         <!-- ============================================================ -->
         <!-- Phase 3: Network Preparation -->
         <!-- ============================================================ -->
         <section id="phase3" class="config-section" data-accent="network">
-            <h2>6. Phase 3 &mdash; Network Preparation (Router/DHCP)</h2>
+            <h2>Phase 3 &mdash; Network Preparation</h2>
             <p>Before installing the OS, configure your network infrastructure so that nodes will receive the correct IP addresses at boot.</p>
 
             <div class="step">
@@ -661,7 +667,7 @@ sudo systemctl restart dhcpd6</pre>
         <!-- Phase 4: Install openSUSE MicroOS -->
         <!-- ============================================================ -->
         <section id="phase4" class="config-section" data-accent="os">
-            <h2>7. Phase 4 &mdash; Install openSUSE MicroOS</h2>
+            <h2>Phase 4 &mdash; Install openSUSE MicroOS</h2>
 
             <div class="callout callout-info">
                 <strong>Why openSUSE MicroOS?</strong> It is an immutable, container-optimized OS with automatic transactional updates. It provides a minimal, secure base ideal for Kubernetes nodes. No license or subscription required.
@@ -773,7 +779,7 @@ sudo umount /mnt</pre>
         <!-- Phase 5: OS Configuration -->
         <!-- ============================================================ -->
         <section id="phase5" class="config-section" data-accent="ssh">
-            <h2>8. Phase 5 &mdash; OS Configuration</h2>
+            <h2>Phase 5 &mdash; OS Configuration</h2>
             <p>After the OS is installed on all nodes, apply the generated OS configuration files.</p>
 
             <h3>Option A: Automated (Recommended)</h3>
@@ -933,7 +939,7 @@ REMOTE</pre>
         <!-- Phase 6: HAProxy + Keepalived -->
         <!-- ============================================================ -->
         <section id="phase6" class="config-section" data-accent="haproxy">
-            <h2>9. Phase 6 &mdash; Deploy HAProxy &amp; Keepalived</h2>
+            <h2>Phase 6 &mdash; HAProxy &amp; Keepalived</h2>
             <p>HAProxy load-balances the K3s API across all masters. Keepalived manages the Virtual IP that floats between them.</p>
 
             <h3>Option A: Automated</h3>
@@ -1020,7 +1026,7 @@ curl http://192.168.1.101:8404/stats</pre>
         <!-- Phase 7: K3s Installation -->
         <!-- ============================================================ -->
         <section id="phase7" class="config-section" data-accent="k3s">
-            <h2>10. Phase 7 &mdash; Bootstrap K3s Cluster</h2>
+            <h2>Phase 7 &mdash; Bootstrap K3s</h2>
 
             <h3>Option A: Automated</h3>
 <pre class="code-block"># Step 1: Bootstrap the first server
@@ -1105,7 +1111,7 @@ curl -k https://192.168.1.100:6443/version</pre>
         <!-- Phase 8: Worker Nodes -->
         <!-- ============================================================ -->
         <section id="phase8" class="config-section" data-accent="workers">
-            <h2>11. Phase 8 &mdash; Add Worker Nodes</h2>
+            <h2>Phase 8 &mdash; Add Workers</h2>
 
             <h3>Option A: Automated</h3>
 <pre class="code-block">./scripts/05-install-k3s-agents.sh</pre>
@@ -1152,7 +1158,7 @@ ssh root@192.168.1.111 "curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='agent' 
         <!-- Phase 9: Persistent Storage -->
         <!-- ============================================================ -->
         <section id="phase9" class="config-section" data-accent="storage">
-            <h2>12. Phase 9 &mdash; Install Persistent Storage</h2>
+            <h2>Phase 9 &mdash; Persistent Storage</h2>
 
             <h3>Option A: Automated</h3>
 <pre class="code-block"># For Longhorn (distributed, recommended for production)
@@ -1225,7 +1231,7 @@ kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80
         <!-- Final Verification -->
         <!-- ============================================================ -->
         <section id="verification" class="config-section" data-accent="masters">
-            <h2>13. Final Verification</h2>
+            <h2>Verification</h2>
             <p>Run these checks to confirm your cluster is fully operational:</p>
 
 <pre class="code-block"># 1. All nodes are Ready
@@ -1282,7 +1288,7 @@ kubectl delete svc nginx-test</pre>
         <!-- Recovery / Idempotency -->
         <!-- ============================================================ -->
         <section id="recovery" class="config-section" data-accent="disk">
-            <h2>14. Recovery &amp; Re-Running Steps</h2>
+            <h2>Recovery</h2>
             <p>The deployment scripts are designed to be re-runnable. If a step fails, fix the underlying issue and re-run the same script.</p>
 
             <h3>Re-run a deployment script</h3>
@@ -1326,7 +1332,7 @@ ssh root@&lt;worker-ip&gt; "/usr/local/bin/k3s-agent-uninstall.sh"
         <!-- Troubleshooting -->
         <!-- ============================================================ -->
         <section id="troubleshooting" class="config-section" data-accent="keepalived">
-            <h2>15. Troubleshooting</h2>
+            <h2>Troubleshooting</h2>
 
             <table class="info-table">
                 <thead>
@@ -1406,7 +1412,7 @@ ssh root@192.168.1.101 "ETCDCTL_API=3 etcdctl \
         <!-- ============================================================ -->
         <!-- Deployment Summary -->
         <!-- ============================================================ -->
-        <section class="config-section" data-accent="k3s">
+        <section id="workflow-summary" class="config-section" data-accent="k3s">
             <h2>Deployment Workflow Summary</h2>
             <div class="workflow-summary">
                 <div class="workflow-step">
@@ -1465,5 +1471,87 @@ ssh root@192.168.1.101 "ETCDCTL_API=3 etcdctl \
             <a href="https://github.com/opentreecz/k3s/tree/main/docs">Full Documentation</a>
         </p>
     </footer>
+
+    <!-- Back to top button -->
+    <button type="button" class="btn-top" id="btn-top" title="Back to top">&uarr;</button>
+
+    <script>
+    (function () {
+        // Back-to-top
+        var btn = document.getElementById("btn-top");
+        if (btn) {
+            window.addEventListener("scroll", function () {
+                btn.classList.toggle("visible", window.scrollY > 400);
+            });
+            btn.addEventListener("click", function () {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            });
+        }
+
+        // Add copy buttons to static code blocks
+        document.querySelectorAll("pre.code-block").forEach(function (pre) {
+            if (pre.closest(".proc-code-wrap")) return; // skip JS-generated ones
+            var wrap = document.createElement("div");
+            wrap.className = "proc-code-wrap";
+            pre.parentNode.insertBefore(wrap, pre);
+            wrap.appendChild(pre);
+            var copyBtn = document.createElement("button");
+            copyBtn.type = "button";
+            copyBtn.className = "btn-copy";
+            copyBtn.title = "Copy to clipboard";
+            copyBtn.textContent = "Copy";
+            wrap.insertBefore(copyBtn, pre);
+        });
+
+        // Copy handler
+        document.addEventListener("click", function (e) {
+            if (e.target.classList.contains("btn-copy")) {
+                var pre = e.target.closest(".proc-code-wrap").querySelector("pre");
+                if (pre) {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(pre.textContent);
+                    } else {
+                        var ta = document.createElement("textarea");
+                        ta.value = pre.textContent;
+                        ta.style.position = "fixed";
+                        ta.style.left = "-9999px";
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(ta);
+                    }
+                    var orig = e.target.textContent;
+                    e.target.textContent = "Copied!";
+                    setTimeout(function () { e.target.textContent = orig; }, 1500);
+                }
+            }
+        });
+
+        // Scroll-spy: highlight current ToC link
+        var tocLinks = document.querySelectorAll(".toc a");
+        var sections = [];
+        tocLinks.forEach(function (link) {
+            var id = link.getAttribute("href").replace("#", "");
+            var el = document.getElementById(id);
+            if (el) sections.push({ id: id, el: el, link: link });
+        });
+
+        function updateScrollSpy() {
+            var scrollY = window.scrollY + 120;
+            var current = null;
+            for (var i = sections.length - 1; i >= 0; i--) {
+                if (sections[i].el.offsetTop <= scrollY) {
+                    current = sections[i];
+                    break;
+                }
+            }
+            tocLinks.forEach(function (l) { l.classList.remove("toc-active"); });
+            if (current) current.link.classList.add("toc-active");
+        }
+
+        window.addEventListener("scroll", updateScrollSpy);
+        updateScrollSpy();
+    })();
+    </script>
 </body>
 </html>
