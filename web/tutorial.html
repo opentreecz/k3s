@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment Tutorial - K3s Cluster Configuration Generator</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <img src="https://avatars.githubusercontent.com/u/157630833?s=200&v=4" alt="opentree.cz" height="80" style="margin-bottom: 1rem;">
+        <h1>Deployment Tutorial</h1>
+        <p class="subtitle">Step-by-step guide: from configuration generation to a running K3s cluster</p>
+        <nav class="header-nav">
+            <a href="index.html">Configuration Generator</a>
+            <span class="nav-sep">|</span>
+            <a href="https://github.com/opentreecz/k3s">GitHub Repository</a>
+            <span class="nav-sep">|</span>
+            <a href="https://github.com/opentreecz/k3s/tree/main/docs">Full Documentation</a>
+        </nav>
+    </header>
+
+    <main class="tutorial">
+        <!-- ============================================================ -->
+        <!-- Table of Contents -->
+        <!-- ============================================================ -->
+        <section class="config-section toc-section" data-accent="network">
+            <h2>Table of Contents</h2>
+            <nav class="toc">
+                <ol>
+                    <li><a href="#overview">Overview &mdash; What This Tool Does</a></li>
+                    <li><a href="#prerequisites">Prerequisites</a></li>
+                    <li><a href="#phase1">Phase 1 &mdash; Generate Configuration Files</a></li>
+                    <li><a href="#phase2">Phase 2 &mdash; Download and Extract the ZIP</a></li>
+                    <li><a href="#generated-files">Understanding the Generated Files (All 26 Files)</a></li>
+                    <li><a href="#phase3">Phase 3 &mdash; Network Preparation (Router/DHCP)</a></li>
+                    <li><a href="#phase4">Phase 4 &mdash; Install openSUSE MicroOS</a></li>
+                    <li><a href="#phase5">Phase 5 &mdash; OS Configuration</a></li>
+                    <li><a href="#phase6">Phase 6 &mdash; Deploy HAProxy &amp; Keepalived</a></li>
+                    <li><a href="#phase7">Phase 7 &mdash; Bootstrap K3s Cluster</a></li>
+                    <li><a href="#phase8">Phase 8 &mdash; Add Worker Nodes</a></li>
+                    <li><a href="#phase9">Phase 9 &mdash; Install Persistent Storage</a></li>
+                    <li><a href="#verification">Final Verification</a></li>
+                    <li><a href="#troubleshooting">Troubleshooting</a></li>
+                </ol>
+            </nav>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Overview -->
+        <!-- ============================================================ -->
+        <section id="overview" class="config-section" data-accent="k3s">
+            <h2>1. Overview &mdash; What This Tool Does</h2>
+            <p>The <strong>K3s Cluster Configuration Generator</strong> is a browser-based tool that produces all the configuration files needed to deploy a highly available K3s Kubernetes cluster on baremetal servers.</p>
+
+            <p>You fill in a form with your network details, node IPs, MAC addresses, and preferences. The tool generates <strong>26 configuration files</strong> bundled as a ZIP archive. These files cover:</p>
+
+            <ul class="feature-list">
+                <li><strong>Network configuration</strong> &mdash; DHCP static leases, DNS entries, /etc/hosts, router checklist</li>
+                <li><strong>OS disk layout</strong> &mdash; AutoYaST (XML) and Ignition (JSON) disk partitioning for each node</li>
+                <li><strong>SSH hardening</strong> &mdash; authorized keys, sshd hardening config</li>
+                <li><strong>Kernel tuning</strong> &mdash; sysctl parameters for K3s and container networking</li>
+                <li><strong>HAProxy</strong> &mdash; load balancer configuration for the K3s API server</li>
+                <li><strong>Keepalived</strong> &mdash; Virtual IP failover configuration per master node</li>
+                <li><strong>K3s</strong> &mdash; server and agent config.yaml for each node</li>
+                <li><strong>Storage</strong> &mdash; Longhorn Helm values or local-path StorageClass</li>
+                <li><strong>variables.yaml</strong> &mdash; all your settings in one file (for re-generation later)</li>
+            </ul>
+
+            <div class="architecture-diagram">
+                <h3>Target Architecture</h3>
+<pre>
+                    +-------------------+
+                    |   Virtual IP      |
+                    | (HAProxy Float)   |
+                    +--------+----------+
+                             |
+          +------------------+------------------+
+          |                  |                  |
+ +--------v------+  +-------v-------+  +------v--------+
+ | master-01     |  | master-02     |  | master-03     |
+ | HAProxy       |  | HAProxy       |  | HAProxy       |
+ | Keepalived    |  | Keepalived    |  | Keepalived    |
+ | K3s Server    |  | K3s Server    |  | K3s Server    |
+ | (etcd)        |  | (etcd)        |  | (etcd)        |
+ +---------------+  +---------------+  +---------------+
+                             |
+          +------------------+------------------+
+          |                  |                  |
+ +--------v------+  +-------v-------+  +------v--------+
+ | worker-01     |  | worker-02     |  | worker-N      |
+ | K3s Agent     |  | K3s Agent     |  | K3s Agent     |
+ +---------------+  +---------------+  +---------------+
+</pre>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Prerequisites -->
+        <!-- ============================================================ -->
+        <section id="prerequisites" class="config-section" data-accent="os">
+            <h2>2. Prerequisites</h2>
+
+            <h3>Hardware Requirements</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>Role</th><th>Count</th><th>CPU</th><th>RAM</th><th>Disk</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>Master node</td><td>3 (required)</td><td>2+ cores</td><td>4 GB+</td><td>40 GB+ (SSD recommended)</td></tr>
+                    <tr><td>Worker node</td><td>1+ (recommended 3)</td><td>2+ cores</td><td>4 GB+</td><td>40 GB+ (SSD recommended)</td></tr>
+                </tbody>
+            </table>
+
+            <h3>Network Requirements</h3>
+            <ul>
+                <li>All nodes on the same Layer 2 network (for VRRP/Keepalived)</li>
+                <li>DHCP server with static lease support (DHCPv4 required, DHCPv6 optional)</li>
+                <li>Internet access on all nodes (for package installation and K3s download)</li>
+                <li>A deployment host (laptop/workstation) with SSH access to all nodes</li>
+            </ul>
+
+            <h3>Information You Need Before Starting</h3>
+            <ul>
+                <li>IP addresses for each node (IPv4 required, IPv6 optional)</li>
+                <li>MAC addresses for each server's network interface</li>
+                <li>A free IP address for the Virtual IP (VIP)</li>
+                <li>Your network gateway and DNS server addresses</li>
+                <li>Your SSH public key(s)</li>
+                <li>Your target disk device names (e.g., <code>/dev/sda</code>, <code>/dev/nvme0n1</code>)</li>
+            </ul>
+
+            <div class="callout callout-info">
+                <strong>Tip:</strong> If you don't know MAC addresses yet, install the OS first using DHCP, then retrieve them with <code>ip link show eth0 | grep ether</code> and re-generate the configuration.
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 1: Generate Configuration -->
+        <!-- ============================================================ -->
+        <section id="phase1" class="config-section" data-accent="ssh">
+            <h2>3. Phase 1 &mdash; Generate Configuration Files</h2>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Open the Configuration Generator</h3>
+                    <p>Navigate to <a href="index.html">the Configuration Generator</a> in your browser. The form is organized into colored sections, each configuring a different aspect of your cluster.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Fill in the Operating System Section</h3>
+                    <p>Select <strong>openSUSE MicroOS</strong> (community, free) or <strong>SUSE Linux Enterprise Micro</strong> (commercial, requires registration code).</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Configure SSH Keys</h3>
+                    <p>Enter your GitHub username(s) to auto-fetch public keys, and/or paste additional public keys directly. Enable "Disable Password Authentication" for production.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Configure Network Settings</h3>
+                    <p>Set your network interface name (e.g., <code>eth0</code>, <code>ens3</code>), cluster domain, DNS server, gateway, and subnet masks. Choose your IPv6 mode:</p>
+                    <ul>
+                        <li><strong>Disabled</strong> &mdash; IPv4 only (simplest)</li>
+                        <li><strong>DHCPv6</strong> &mdash; static IPv6 leases via DUID (recommended for servers)</li>
+                        <li><strong>SLAAC</strong> &mdash; auto-configured from router advertisements</li>
+                        <li><strong>Both</strong> &mdash; DHCPv6 + SLAAC combined</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h3>Set the Virtual IP (VIP)</h3>
+                    <p>Enter an unused IP address on your subnet for the floating Virtual IP. This IP will be managed by Keepalived and used as the K3s API endpoint. Workers and <code>kubectl</code> connect through this address.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">6</div>
+                <div class="step-content">
+                    <h3>Configure Master Nodes</h3>
+                    <p>Fill in hostname, IPv4, IPv6 (if enabled), and MAC address for each of the 3 master nodes. If using DHCPv6, click <strong>"Generate"</strong> next to each DUID field (or use <strong>"Generate All DUIDs"</strong>).</p>
+                    <p>Expand <strong>Advanced: Per-Node Hardware</strong> if individual nodes have different network interfaces or disk devices.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">7</div>
+                <div class="step-content">
+                    <h3>Configure Worker Nodes</h3>
+                    <p>Add worker nodes with the <strong>"+ Add Worker Node"</strong> button. Fill in the same details as master nodes. You can add or remove workers at any time.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">8</div>
+                <div class="step-content">
+                    <h3>Configure K3s Settings</h3>
+                    <p>Set the K3s version (leave empty for latest), cluster token (leave empty to auto-generate), and CIDRs for pod and service networks. The defaults work well for most deployments.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">9</div>
+                <div class="step-content">
+                    <h3>Choose Disk Layout</h3>
+                    <ul>
+                        <li><strong>Single Root</strong> &mdash; one Btrfs partition, simplest setup</li>
+                        <li><strong>Multi-Partition</strong> (recommended) &mdash; separate partitions for OS, K3s data, and storage on a single disk</li>
+                        <li><strong>Multi-Disk</strong> &mdash; dedicated disks for OS, K3s data, and storage (best I/O isolation)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">10</div>
+                <div class="step-content">
+                    <h3>Choose Persistent Storage</h3>
+                    <ul>
+                        <li><strong>Longhorn</strong> &mdash; distributed replicated storage (production recommended)</li>
+                        <li><strong>Local-Path</strong> &mdash; simple node-local storage (dev/lab)</li>
+                        <li><strong>None</strong> &mdash; no persistent storage provisioner</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">11</div>
+                <div class="step-content">
+                    <h3>Configure HAProxy, Keepalived, and DHCP</h3>
+                    <p>The defaults are suitable for most setups. Change the HAProxy stats password from the default <code>admin</code> in production environments.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">12</div>
+                <div class="step-content">
+                    <h3>Generate and Preview</h3>
+                    <p>Click <strong>"Generate Configuration"</strong>. The tool validates all fields (errors are highlighted in red with messages). Once valid, the generated files appear below in preview tabs. Review them to ensure correctness.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 2: Download and Extract -->
+        <!-- ============================================================ -->
+        <section id="phase2" class="config-section" data-accent="disk">
+            <h2>4. Phase 2 &mdash; Download and Extract the ZIP</h2>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Download the ZIP Archive</h3>
+                    <p>Click <strong>"Download ZIP Archive"</strong>. The file is named <code>k3s-config-v{version}-{timestamp}.zip</code>.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Clone the Repository (if using deployment scripts)</h3>
+<pre class="code-block">git clone https://github.com/opentreecz/k3s.git
+cd k3s</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Extract the ZIP into the <code>generated/</code> Directory</h3>
+<pre class="code-block"># Extract the downloaded ZIP
+unzip ~/Downloads/k3s-config-*.zip -d generated/
+
+# Verify the structure
+ls generated/
+# haproxy/  k3s/  keepalived/  network/  os/  storage/  variables.yaml</pre>
+                    <p>The deployment scripts (<code>scripts/00-06</code>) automatically look for files in <code>generated/</code> and use them if present.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Verify the Extracted Files</h3>
+<pre class="code-block"># List all generated files
+find generated/ -type f | sort
+
+# Expected output (example with 3 masters, 1 worker):
+# generated/haproxy/haproxy.cfg
+# generated/k3s/master-01/config.yaml
+# generated/k3s/master-02/config.yaml
+# generated/k3s/master-03/config.yaml
+# generated/k3s/worker-01/config.yaml
+# generated/keepalived/master-01/keepalived.conf
+# generated/keepalived/master-02/keepalived.conf
+# generated/keepalived/master-03/keepalived.conf
+# generated/network/dhcpd4-leases.conf
+# generated/network/dhcpd6-leases.conf
+# generated/network/dnsmasq-leases.conf
+# generated/network/hosts
+# generated/network/router-checklist.md
+# generated/os/master-01/disk-ignition.json
+# generated/os/master-01/disk-partitioning.xml
+# generated/os/master-02/disk-ignition.json
+# generated/os/master-02/disk-partitioning.xml
+# generated/os/master-03/disk-ignition.json
+# generated/os/master-03/disk-partitioning.xml
+# generated/os/ssh-authorized-keys
+# generated/os/sshd-hardening.conf
+# generated/os/sysctl-k3s.conf
+# generated/os/worker-01/disk-ignition.json
+# generated/os/worker-01/disk-partitioning.xml
+# generated/storage/longhorn-values.yaml
+# generated/variables.yaml</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Understanding Generated Files -->
+        <!-- ============================================================ -->
+        <section id="generated-files" class="config-section" data-accent="storage">
+            <h2>5. Understanding the Generated Files (All 26 Files)</h2>
+            <p>Here is what each generated file does and where it needs to be deployed:</p>
+
+            <h3>Network Configuration (<code>network/</code>)</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>dhcpd4-leases.conf</code></td>
+                        <td>ISC DHCPv4 static leases (MAC &rarr; IPv4 for all nodes)</td>
+                        <td>Include in your DHCP server's <code>/etc/dhcp/dhcpd.conf</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>dhcpd6-leases.conf</code></td>
+                        <td>ISC DHCPv6 static leases (DUID &rarr; IPv6 for all nodes)</td>
+                        <td>Include in your DHCP server's <code>/etc/dhcp/dhcpd6.conf</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>dnsmasq-leases.conf</code></td>
+                        <td>dnsmasq DHCP leases + DNS records (alternative to ISC DHCP)</td>
+                        <td>Include in dnsmasq config or <code>/etc/dnsmasq.d/</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>hosts</code></td>
+                        <td><code>/etc/hosts</code> entries for all nodes (IPv4 + IPv6)</td>
+                        <td>Append to <code>/etc/hosts</code> on every node</td>
+                    </tr>
+                    <tr>
+                        <td><code>router-checklist.md</code></td>
+                        <td>Human-readable checklist of all router/firewall configuration needed</td>
+                        <td>Reference document &mdash; follow the checklist on your router</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>OS Configuration (<code>os/</code>)</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>sysctl-k3s.conf</code></td>
+                        <td>Kernel parameters (IPv4/IPv6 forwarding, bridge-nf, inotify, conntrack)</td>
+                        <td>Copy to <code>/etc/sysctl.d/90-k3s.conf</code> on every node, run <code>sysctl --system</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>ssh-authorized-keys</code></td>
+                        <td>SSH public keys for all nodes</td>
+                        <td>Copy to <code>/root/.ssh/authorized_keys</code> on every node</td>
+                    </tr>
+                    <tr>
+                        <td><code>sshd-hardening.conf</code></td>
+                        <td>SSH daemon hardening (disable passwords, pubkey only, max retries)</td>
+                        <td>Copy to <code>/etc/ssh/sshd_config.d/90-hardening.conf</code> on every node</td>
+                    </tr>
+                    <tr>
+                        <td><code>{hostname}/disk-partitioning.xml</code></td>
+                        <td>AutoYaST disk partitioning profile (per node)</td>
+                        <td>Use during SLE Micro automated installation</td>
+                    </tr>
+                    <tr>
+                        <td><code>{hostname}/disk-ignition.json</code></td>
+                        <td>Ignition first-boot disk config (per node)</td>
+                        <td>Use during openSUSE MicroOS automated installation via USB</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>HAProxy (<code>haproxy/</code>)</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>haproxy.cfg</code></td>
+                        <td>TCP load balancer for K3s API (port 6443), with stats page</td>
+                        <td>Copy to <code>/etc/haproxy/haproxy.cfg</code> on all 3 master nodes</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Keepalived (<code>keepalived/</code>)</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>master-01/keepalived.conf</code></td>
+                        <td>VRRP config for master-01 (MASTER, priority 101)</td>
+                        <td>Copy to <code>/etc/keepalived/keepalived.conf</code> on master-01</td>
+                    </tr>
+                    <tr>
+                        <td><code>master-02/keepalived.conf</code></td>
+                        <td>VRRP config for master-02 (BACKUP, priority 100)</td>
+                        <td>Copy to <code>/etc/keepalived/keepalived.conf</code> on master-02</td>
+                    </tr>
+                    <tr>
+                        <td><code>master-03/keepalived.conf</code></td>
+                        <td>VRRP config for master-03 (BACKUP, priority 99)</td>
+                        <td>Copy to <code>/etc/keepalived/keepalived.conf</code> on master-03</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>K3s Configuration (<code>k3s/</code>)</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>master-01/config.yaml</code></td>
+                        <td>First server config (<code>cluster-init: true</code>, bootstraps etcd)</td>
+                        <td>Copy to <code>/etc/rancher/k3s/config.yaml</code> on master-01</td>
+                    </tr>
+                    <tr>
+                        <td><code>master-02/config.yaml</code></td>
+                        <td>Joining server config (<code>server: https://master-01:6443</code>)</td>
+                        <td>Copy to <code>/etc/rancher/k3s/config.yaml</code> on master-02</td>
+                    </tr>
+                    <tr>
+                        <td><code>master-03/config.yaml</code></td>
+                        <td>Joining server config (<code>server: https://master-01:6443</code>)</td>
+                        <td>Copy to <code>/etc/rancher/k3s/config.yaml</code> on master-03</td>
+                    </tr>
+                    <tr>
+                        <td><code>worker-01/config.yaml</code></td>
+                        <td>Agent config (<code>server: https://VIP:6443</code>)</td>
+                        <td>Copy to <code>/etc/rancher/k3s/config.yaml</code> on worker-01</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Storage (<code>storage/</code>)</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>longhorn-values.yaml</code></td>
+                        <td>Helm values for Longhorn (replica count, data path, UI toggle)</td>
+                        <td>Used with <code>helm install</code> for Longhorn deployment</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Variables (<code>variables.yaml</code>)</h3>
+            <table class="info-table">
+                <thead>
+                    <tr><th>File</th><th>Purpose</th><th>Where to Apply</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>variables.yaml</code></td>
+                        <td>All your cluster settings in one YAML file</td>
+                        <td>Keep for reference, or use with <code>python3 generate.py --vars variables.yaml</code> to re-generate configs locally</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 3: Network Preparation -->
+        <!-- ============================================================ -->
+        <section id="phase3" class="config-section" data-accent="network">
+            <h2>6. Phase 3 &mdash; Network Preparation (Router/DHCP)</h2>
+            <p>Before installing the OS, configure your network infrastructure so that nodes will receive the correct IP addresses at boot.</p>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Open the Router Checklist</h3>
+                    <p>Review <code>generated/network/router-checklist.md</code> &mdash; it contains a complete list of everything to configure on your router/firewall with your actual cluster values.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Configure DHCPv4 Static Leases</h3>
+                    <p>Use the generated lease file that matches your DHCP server:</p>
+                    <ul>
+                        <li><strong>ISC DHCP (dhcpd)</strong> &mdash; include <code>generated/network/dhcpd4-leases.conf</code> in your <code>/etc/dhcp/dhcpd.conf</code></li>
+                        <li><strong>dnsmasq</strong> &mdash; include <code>generated/network/dnsmasq-leases.conf</code> in your dnsmasq configuration</li>
+                        <li><strong>Router admin UI</strong> &mdash; manually create static leases using the MAC &rarr; IP mappings from the generated files</li>
+                    </ul>
+<pre class="code-block"># Example: ISC DHCP server
+sudo cp generated/network/dhcpd4-leases.conf /etc/dhcp/conf.d/k3s-leases.conf
+echo 'include "/etc/dhcp/conf.d/k3s-leases.conf";' | sudo tee -a /etc/dhcp/dhcpd.conf
+sudo systemctl restart dhcpd</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Configure DHCPv6 Static Leases (if using IPv6 with DHCPv6 mode)</h3>
+<pre class="code-block"># Example: ISC DHCPv6 server
+sudo cp generated/network/dhcpd6-leases.conf /etc/dhcp/conf.d/k3s-leases6.conf
+echo 'include "/etc/dhcp/conf.d/k3s-leases6.conf";' | sudo tee -a /etc/dhcp/dhcpd6.conf
+sudo systemctl restart dhcpd6</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Configure DNS Records</h3>
+                    <p>Create A (and AAAA if using IPv6) records for all nodes and the VIP hostname. The <code>generated/network/hosts</code> file contains all the mappings you need.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h3>Reserve the VIP</h3>
+                    <p>The Virtual IP must <strong>not</strong> be assigned to any physical device. Exclude it from your DHCP dynamic range, or create a dummy reservation to prevent assignment.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">6</div>
+                <div class="step-content">
+                    <h3>Configure Firewall Rules</h3>
+                    <p>Open the following ports on your network firewall (if one exists between nodes):</p>
+                    <table class="info-table">
+                        <thead>
+                            <tr><th>Port</th><th>Protocol</th><th>Purpose</th><th>Where</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>6443</td><td>TCP</td><td>K3s API Server</td><td>Masters</td></tr>
+                            <tr><td>2379-2380</td><td>TCP</td><td>etcd client + peer</td><td>Masters</td></tr>
+                            <tr><td>10250</td><td>TCP</td><td>Kubelet metrics</td><td>All nodes</td></tr>
+                            <tr><td>8472</td><td>UDP</td><td>Flannel VXLAN</td><td>All nodes</td></tr>
+                            <tr><td>30000-32767</td><td>TCP/UDP</td><td>NodePort Services</td><td>Workers</td></tr>
+                            <tr><td>Protocol 112</td><td>VRRP</td><td>Keepalived failover</td><td>Masters</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 4: Install openSUSE MicroOS -->
+        <!-- ============================================================ -->
+        <section id="phase4" class="config-section" data-accent="os">
+            <h2>7. Phase 4 &mdash; Install openSUSE MicroOS</h2>
+
+            <div class="callout callout-info">
+                <strong>Why openSUSE MicroOS?</strong> It is an immutable, container-optimized OS with automatic transactional updates. It provides a minimal, secure base ideal for Kubernetes nodes. No license or subscription required.
+            </div>
+
+            <h3>Option A: Interactive Installation (Recommended for First Time)</h3>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Download the ISO</h3>
+                    <p>Download from <a href="https://get.opensuse.org/microos/" target="_blank" rel="noopener">get.opensuse.org/microos</a></p>
+                    <ul>
+                        <li>Select <strong>Bare Metal / Virtual Machine</strong> &rarr; <strong>Offline Image</strong> (full installer)</li>
+                        <li>Architecture: <strong>x86_64</strong></li>
+                    </ul>
+                    <p>Write the ISO to a USB drive:</p>
+<pre class="code-block"># Linux/macOS
+sudo dd if=openSUSE-MicroOS-DVD-x86_64-*.iso of=/dev/sdX bs=4M status=progress
+
+# Or use balenaEtcher, Rufus (Windows), or Ventoy</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Boot and Install</h3>
+                    <ol>
+                        <li>Boot the server from the USB drive</li>
+                        <li>Select <strong>"Installation"</strong> from the GRUB boot menu</li>
+                        <li>Wait for the installer to load</li>
+                        <li>Configure the following:
+                            <ul>
+                                <li><strong>System Role:</strong> Select <strong>"MicroOS"</strong> (not "MicroOS Desktop")</li>
+                                <li><strong>Disk:</strong> Select your target disk (e.g., <code>/dev/sda</code>). Use the default Btrfs layout for now &mdash; the generated disk partitioning config can be applied during automated re-installation later.</li>
+                                <li><strong>Network:</strong> Leave as <strong>DHCP</strong> (your static DHCP leases handle addressing)</li>
+                                <li><strong>Time:</strong> Set your timezone, enable NTP</li>
+                                <li><strong>Root Password:</strong> Set a temporary root password</li>
+                                <li><strong>SSH:</strong> Ensure SSH service is <strong>enabled</strong></li>
+                            </ul>
+                        </li>
+                        <li>Confirm and begin installation</li>
+                        <li>Reboot when complete, remove USB drive</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Repeat for All Nodes</h3>
+                    <p>Install openSUSE MicroOS on all 3 master nodes and all worker nodes. Each node should boot and get its expected IP address from the DHCP static lease.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Verify SSH Access</h3>
+<pre class="code-block"># From your deployment host, test SSH to each node:
+ssh root@192.168.1.101 "hostnamectl"   # master-01
+ssh root@192.168.1.102 "hostnamectl"   # master-02
+ssh root@192.168.1.103 "hostnamectl"   # master-03
+ssh root@192.168.1.111 "hostnamectl"   # worker-01</pre>
+                </div>
+            </div>
+
+            <h3>Option B: Automated Installation with Ignition (Advanced)</h3>
+            <p>For automated, unattended installation using the generated Ignition configs:</p>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Prepare a USB Drive with Ignition Config</h3>
+<pre class="code-block"># Format a USB drive with the label "ignition"
+sudo mkfs.ext4 -L ignition /dev/sdX1
+
+# Mount and copy the node-specific Ignition config
+sudo mount /dev/sdX1 /mnt
+sudo cp generated/os/master-01/disk-ignition.json /mnt/config.ign
+sudo umount /mnt</pre>
+                    <p>The Ignition config handles disk partitioning, SSH keys, hostname, and first-boot services automatically.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Boot with Both USB Drives</h3>
+                    <p>Insert both the MicroOS installation ISO USB and the Ignition config USB. Boot from the ISO &mdash; MicroOS will detect the Ignition config on the labeled USB and apply it during first boot.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Repeat for Each Node</h3>
+                    <p>Use the corresponding <code>generated/os/{hostname}/disk-ignition.json</code> file for each node. Each file contains the correct hostname and disk layout for that specific node.</p>
+                </div>
+            </div>
+
+            <div class="callout callout-warning">
+                <strong>SLE Micro alternative:</strong> If using SUSE Linux Enterprise Micro instead, use the AutoYaST profiles (<code>generated/os/{hostname}/disk-partitioning.xml</code>) with the boot parameter <code>autoyast=http://&lt;server&gt;/disk-partitioning.xml</code>. See the <a href="https://github.com/opentreecz/k3s/blob/main/docs/01-os-installation.md">full OS installation guide</a> for details.
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 5: OS Configuration -->
+        <!-- ============================================================ -->
+        <section id="phase5" class="config-section" data-accent="ssh">
+            <h2>8. Phase 5 &mdash; OS Configuration</h2>
+            <p>After the OS is installed on all nodes, apply the generated OS configuration files.</p>
+
+            <h3>Option A: Automated (Recommended)</h3>
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Run the OS Configuration Script</h3>
+<pre class="code-block"># From the repository root (where generated/ was extracted)
+./scripts/01-configure-os.sh</pre>
+                    <p>This script automatically deploys:</p>
+                    <ul>
+                        <li><code>generated/os/sysctl-k3s.conf</code> &rarr; <code>/etc/sysctl.d/90-k3s.conf</code> on all nodes</li>
+                        <li><code>generated/network/hosts</code> &rarr; appended to <code>/etc/hosts</code> on all nodes</li>
+                        <li><code>generated/os/ssh-authorized-keys</code> &rarr; <code>/root/.ssh/authorized_keys</code> on all nodes</li>
+                        <li><code>generated/os/sshd-hardening.conf</code> &rarr; <code>/etc/ssh/sshd_config.d/</code> on all nodes</li>
+                        <li>Installs required packages, loads kernel modules, configures firewall</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Option B: Manual Deployment</h3>
+            <p>Deploy the generated files manually to each node via SCP:</p>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Set Hostnames</h3>
+<pre class="code-block"># On each node, set the hostname:
+ssh root@192.168.1.101 "hostnamectl set-hostname master-01.k3s.local"
+ssh root@192.168.1.102 "hostnamectl set-hostname master-02.k3s.local"
+ssh root@192.168.1.103 "hostnamectl set-hostname master-03.k3s.local"
+ssh root@192.168.1.111 "hostnamectl set-hostname worker-01.k3s.local"</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Deploy /etc/hosts</h3>
+<pre class="code-block"># Copy to all nodes:
+for node in 192.168.1.101 192.168.1.102 192.168.1.103 192.168.1.111; do
+    scp generated/network/hosts root@${node}:/tmp/k3s-hosts
+    ssh root@${node} "cat /tmp/k3s-hosts >> /etc/hosts"
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Deploy Kernel Parameters (sysctl)</h3>
+<pre class="code-block">for node in 192.168.1.101 192.168.1.102 192.168.1.103 192.168.1.111; do
+    scp generated/os/sysctl-k3s.conf root@${node}:/etc/sysctl.d/90-k3s.conf
+    ssh root@${node} "sysctl --system"
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Deploy SSH Keys and Hardening</h3>
+<pre class="code-block">for node in 192.168.1.101 192.168.1.102 192.168.1.103 192.168.1.111; do
+    scp generated/os/ssh-authorized-keys root@${node}:/root/.ssh/authorized_keys
+    ssh root@${node} "chmod 600 /root/.ssh/authorized_keys"
+    scp generated/os/sshd-hardening.conf root@${node}:/etc/ssh/sshd_config.d/90-hardening.conf
+    ssh root@${node} "systemctl restart sshd"
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h3>Load Kernel Modules and Install Required Packages</h3>
+<pre class="code-block">for node in 192.168.1.101 192.168.1.102 192.168.1.103 192.168.1.111; do
+    ssh root@${node} &lt;&lt;'REMOTE'
+# Load kernel modules
+for mod in br_netfilter overlay ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh nf_conntrack; do
+    modprobe $mod
+done
+cat > /etc/modules-load.d/k3s.conf &lt;&lt;'EOF'
+br_netfilter
+overlay
+ip_vs
+ip_vs_rr
+ip_vs_wrr
+ip_vs_sh
+nf_conntrack
+EOF
+
+# Install required packages (on MicroOS, uses transactional-update)
+transactional-update pkg install open-iscsi nfs-client cryptsetup apparmor-parser
+REMOTE
+done
+
+# IMPORTANT: Reboot all nodes to apply transactional updates
+for node in 192.168.1.101 192.168.1.102 192.168.1.103 192.168.1.111; do
+    ssh root@${node} "transactional-update reboot"
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">6</div>
+                <div class="step-content">
+                    <h3>Configure Firewall on Each Node</h3>
+<pre class="code-block"># On master nodes (repeat for each master):
+ssh root@192.168.1.101 &lt;&lt;'REMOTE'
+firewall-cmd --permanent --add-port=6443/tcp
+firewall-cmd --permanent --add-port=2379/tcp
+firewall-cmd --permanent --add-port=2380/tcp
+firewall-cmd --permanent --add-port=10250/tcp
+firewall-cmd --permanent --add-port=8472/udp
+firewall-cmd --permanent --add-port=8404/tcp
+firewall-cmd --permanent --add-rich-rule='rule protocol value="vrrp" accept'
+firewall-cmd --reload
+REMOTE
+
+# On worker nodes (repeat for each worker):
+ssh root@192.168.1.111 &lt;&lt;'REMOTE'
+firewall-cmd --permanent --add-port=10250/tcp
+firewall-cmd --permanent --add-port=8472/udp
+firewall-cmd --permanent --add-port=30000-32767/tcp
+firewall-cmd --permanent --add-port=30000-32767/udp
+firewall-cmd --reload
+REMOTE</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">7</div>
+                <div class="step-content">
+                    <h3>Verify OS Configuration</h3>
+<pre class="code-block"># On each node, verify:
+ssh root@192.168.1.101 &lt;&lt;'REMOTE'
+echo "=== Hostname ==="
+hostnamectl | grep hostname
+echo "=== Kernel Forwarding ==="
+sysctl net.ipv4.ip_forward
+sysctl net.ipv6.conf.all.forwarding
+echo "=== Modules ==="
+lsmod | grep br_netfilter
+lsmod | grep overlay
+echo "=== Connectivity ==="
+ping -c1 master-02 && echo "OK" || echo "FAIL"
+REMOTE</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 6: HAProxy + Keepalived -->
+        <!-- ============================================================ -->
+        <section id="phase6" class="config-section" data-accent="haproxy">
+            <h2>9. Phase 6 &mdash; Deploy HAProxy &amp; Keepalived</h2>
+            <p>HAProxy load-balances the K3s API across all masters. Keepalived manages the Virtual IP that floats between them.</p>
+
+            <h3>Option A: Automated</h3>
+<pre class="code-block">./scripts/02-install-haproxy.sh</pre>
+            <p>The script deploys <code>generated/haproxy/haproxy.cfg</code> and each node's <code>generated/keepalived/{hostname}/keepalived.conf</code> automatically.</p>
+
+            <h3>Option B: Manual</h3>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Install Packages on All Masters</h3>
+<pre class="code-block">for master in 192.168.1.101 192.168.1.102 192.168.1.103; do
+    ssh root@${master} "transactional-update pkg install haproxy keepalived"
+done
+
+# Reboot to apply
+for master in 192.168.1.101 192.168.1.102 192.168.1.103; do
+    ssh root@${master} "transactional-update reboot"
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Deploy HAProxy Configuration (Same File to All Masters)</h3>
+<pre class="code-block">for master in 192.168.1.101 192.168.1.102 192.168.1.103; do
+    scp generated/haproxy/haproxy.cfg root@${master}:/etc/haproxy/haproxy.cfg
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Deploy Per-Node Keepalived Configuration</h3>
+<pre class="code-block"># Each master gets its OWN keepalived.conf (different priority)
+scp generated/keepalived/master-01/keepalived.conf root@192.168.1.101:/etc/keepalived/keepalived.conf
+scp generated/keepalived/master-02/keepalived.conf root@192.168.1.102:/etc/keepalived/keepalived.conf
+scp generated/keepalived/master-03/keepalived.conf root@192.168.1.103:/etc/keepalived/keepalived.conf</pre>
+                    <div class="callout callout-warning">
+                        <strong>Important:</strong> Each master node has a unique Keepalived config with different <code>state</code> and <code>priority</code> values. Do not copy the same file to all nodes.
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Enable Non-Local IP Binding &amp; Start Services</h3>
+<pre class="code-block">for master in 192.168.1.101 192.168.1.102 192.168.1.103; do
+    ssh root@${master} &lt;&lt;'REMOTE'
+# Allow HAProxy to bind to the VIP before Keepalived assigns it
+echo "net.ipv4.ip_nonlocal_bind = 1" > /etc/sysctl.d/90-haproxy.conf
+echo "net.ipv6.ip_nonlocal_bind = 1" >> /etc/sysctl.d/90-haproxy.conf
+sysctl --system
+
+# Start services
+systemctl enable --now haproxy
+systemctl enable --now keepalived
+REMOTE
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h3>Verify HAProxy and VIP</h3>
+<pre class="code-block"># Check HAProxy is listening
+ssh root@192.168.1.101 "ss -tlnp | grep 6443"
+
+# Check the VIP is assigned (should be on master-01)
+ssh root@192.168.1.101 "ip addr show | grep 192.168.1.100"
+
+# Access HAProxy stats
+curl http://192.168.1.101:8404/stats</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 7: K3s Installation -->
+        <!-- ============================================================ -->
+        <section id="phase7" class="config-section" data-accent="k3s">
+            <h2>10. Phase 7 &mdash; Bootstrap K3s Cluster</h2>
+
+            <h3>Option A: Automated</h3>
+<pre class="code-block"># Step 1: Bootstrap the first server
+./scripts/03-install-k3s-first.sh
+
+# Step 2: Join the remaining servers
+./scripts/04-install-k3s-servers.sh</pre>
+
+            <h3>Option B: Manual</h3>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Deploy K3s Config to First Master and Install</h3>
+<pre class="code-block"># Create the K3s config directory on master-01
+ssh root@192.168.1.101 "mkdir -p /etc/rancher/k3s"
+
+# Copy the generated server config
+scp generated/k3s/master-01/config.yaml root@192.168.1.101:/etc/rancher/k3s/config.yaml
+
+# Install K3s (reads config.yaml automatically)
+ssh root@192.168.1.101 "curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server' sh -s -"</pre>
+                    <div class="callout callout-info">
+                        <strong>Note:</strong> The <code>master-01/config.yaml</code> contains <code>cluster-init: true</code>, which initializes the etcd cluster. Only the first master uses this setting.
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Wait for First Master to Be Ready</h3>
+<pre class="code-block"># Wait ~30-60 seconds, then verify
+ssh root@192.168.1.101 "kubectl get nodes"
+
+# Expected output:
+# NAME        STATUS   ROLES                       AGE   VERSION
+# master-01   Ready    control-plane,etcd,master   1m    v1.xx.x+k3s1</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Join master-02</h3>
+<pre class="code-block">ssh root@192.168.1.102 "mkdir -p /etc/rancher/k3s"
+scp generated/k3s/master-02/config.yaml root@192.168.1.102:/etc/rancher/k3s/config.yaml
+ssh root@192.168.1.102 "curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server' sh -s -"</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Join master-03</h3>
+<pre class="code-block">ssh root@192.168.1.103 "mkdir -p /etc/rancher/k3s"
+scp generated/k3s/master-03/config.yaml root@192.168.1.103:/etc/rancher/k3s/config.yaml
+ssh root@192.168.1.103 "curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='server' sh -s -"</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h3>Verify the Full Control Plane</h3>
+<pre class="code-block"># Check all masters are Ready
+ssh root@192.168.1.101 "kubectl get nodes"
+
+# Expected:
+# NAME        STATUS   ROLES                       AGE   VERSION
+# master-01   Ready    control-plane,etcd,master   5m    v1.xx.x+k3s1
+# master-02   Ready    control-plane,etcd,master   3m    v1.xx.x+k3s1
+# master-03   Ready    control-plane,etcd,master   1m    v1.xx.x+k3s1
+
+# Verify API access through the VIP
+curl -k https://192.168.1.100:6443/version</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 8: Worker Nodes -->
+        <!-- ============================================================ -->
+        <section id="phase8" class="config-section" data-accent="workers">
+            <h2>11. Phase 8 &mdash; Add Worker Nodes</h2>
+
+            <h3>Option A: Automated</h3>
+<pre class="code-block">./scripts/05-install-k3s-agents.sh</pre>
+
+            <h3>Option B: Manual</h3>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Deploy Agent Config and Install</h3>
+<pre class="code-block"># For each worker node:
+ssh root@192.168.1.111 "mkdir -p /etc/rancher/k3s"
+scp generated/k3s/worker-01/config.yaml root@192.168.1.111:/etc/rancher/k3s/config.yaml
+ssh root@192.168.1.111 "curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC='agent' sh -s -"</pre>
+                    <p>The worker's <code>config.yaml</code> points to the VIP (<code>https://192.168.1.100:6443</code>) so it can reach the cluster through any available master.</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Verify Workers Joined</h3>
+<pre class="code-block">ssh root@192.168.1.101 "kubectl get nodes -o wide"
+
+# Expected:
+# NAME        STATUS   ROLES                       AGE   VERSION        INTERNAL-IP
+# master-01   Ready    control-plane,etcd,master   10m   v1.xx.x+k3s1  192.168.1.101
+# master-02   Ready    control-plane,etcd,master   8m    v1.xx.x+k3s1  192.168.1.102
+# master-03   Ready    control-plane,etcd,master   6m    v1.xx.x+k3s1  192.168.1.103
+# worker-01   Ready    &lt;none&gt;                      1m    v1.xx.x+k3s1  192.168.1.111</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Label Worker Nodes</h3>
+<pre class="code-block">ssh root@192.168.1.101 "kubectl label node worker-01 node-role.kubernetes.io/worker=worker"</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Phase 9: Persistent Storage -->
+        <!-- ============================================================ -->
+        <section id="phase9" class="config-section" data-accent="storage">
+            <h2>12. Phase 9 &mdash; Install Persistent Storage</h2>
+
+            <h3>Option A: Automated</h3>
+<pre class="code-block"># For Longhorn (distributed, recommended for production)
+STORAGE_PROVIDER=longhorn ./scripts/06-install-storage.sh
+
+# For local-path (simple, dev/lab)
+STORAGE_PROVIDER=local-path ./scripts/06-install-storage.sh</pre>
+
+            <h3>Option B: Manual Longhorn Installation</h3>
+
+            <div class="step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Prerequisites: Enable iSCSI on All Nodes</h3>
+<pre class="code-block">for node in 192.168.1.101 192.168.1.102 192.168.1.103 192.168.1.111; do
+    ssh root@${node} "systemctl enable --now iscsid"
+done</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Copy kubeconfig to Your Deployment Host</h3>
+<pre class="code-block"># Copy kubeconfig from any master
+scp root@192.168.1.101:/etc/rancher/k3s/k3s.yaml ~/.kube/config
+
+# Update the server URL to use the VIP
+sed -i 's|https://127.0.0.1:6443|https://192.168.1.100:6443|g' ~/.kube/config
+
+# Verify access
+kubectl cluster-info</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Install Longhorn via Helm</h3>
+<pre class="code-block"># Add the Longhorn Helm repo
+helm repo add longhorn https://charts.longhorn.io
+helm repo update
+
+# Install using the generated values file
+helm install longhorn longhorn/longhorn \
+    --namespace longhorn-system \
+    --create-namespace \
+    -f generated/storage/longhorn-values.yaml</pre>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Verify Longhorn</h3>
+<pre class="code-block"># Wait for all Longhorn pods to be running (may take 2-3 minutes)
+kubectl -n longhorn-system get pods
+
+# Verify StorageClass was created
+kubectl get storageclass
+
+# Access the Longhorn UI (port-forward)
+kubectl -n longhorn-system port-forward svc/longhorn-frontend 8080:80
+# Open http://localhost:8080 in your browser</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Final Verification -->
+        <!-- ============================================================ -->
+        <section id="verification" class="config-section" data-accent="masters">
+            <h2>13. Final Verification</h2>
+            <p>Run these checks to confirm your cluster is fully operational:</p>
+
+<pre class="code-block"># 1. All nodes are Ready
+kubectl get nodes -o wide
+
+# 2. All system pods are Running
+kubectl get pods -A
+
+# 3. API accessible via VIP
+curl -k https://192.168.1.100:6443/version
+
+# 4. etcd cluster is healthy (from any master)
+ssh root@192.168.1.101 "k3s etcd-snapshot list"
+
+# 5. VIP failover works
+ssh root@192.168.1.101 "systemctl stop haproxy"
+# Wait 5 seconds, then verify VIP migrated:
+ssh root@192.168.1.102 "ip addr show | grep 192.168.1.100"
+# Restore:
+ssh root@192.168.1.101 "systemctl start haproxy"
+
+# 6. Deploy a test workload
+kubectl create deployment nginx-test --image=nginx:alpine --replicas=3
+kubectl expose deployment nginx-test --port=80 --type=NodePort
+kubectl get pods -o wide
+kubectl get svc nginx-test
+
+# 7. Test persistent storage (if Longhorn installed)
+cat &lt;&lt;EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+kubectl get pvc test-pvc   # Should show "Bound"
+
+# Clean up test resources
+kubectl delete pvc test-pvc
+kubectl delete deployment nginx-test
+kubectl delete svc nginx-test</pre>
+
+            <div class="callout callout-success">
+                <strong>Congratulations!</strong> If all checks pass, your highly available K3s cluster is fully operational. Workers connect through the VIP, master failover is handled by Keepalived, and persistent storage is ready for your workloads.
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Troubleshooting -->
+        <!-- ============================================================ -->
+        <section id="troubleshooting" class="config-section" data-accent="keepalived">
+            <h2>14. Troubleshooting</h2>
+
+            <table class="info-table">
+                <thead>
+                    <tr><th>Symptom</th><th>Possible Cause</th><th>Resolution</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Node doesn't get expected IP</td>
+                        <td>DHCP static lease not configured or MAC mismatch</td>
+                        <td>Verify MAC with <code>ip link show</code>; check DHCP server logs; ensure lease is active</td>
+                    </tr>
+                    <tr>
+                        <td>SSH connection refused</td>
+                        <td>SSH not enabled, firewall blocking, or wrong IP</td>
+                        <td>Enable SSH in installer; check <code>firewall-cmd --list-ports</code>; verify IP with <code>ip addr</code></td>
+                    </tr>
+                    <tr>
+                        <td>IPv6 addresses lost after sysctl</td>
+                        <td>Missing <code>accept_ra = 2</code> in sysctl</td>
+                        <td>Verify <code>sysctl net.ipv6.conf.all.accept_ra</code> shows <code>2</code>; re-deploy <code>sysctl-k3s.conf</code></td>
+                    </tr>
+                    <tr>
+                        <td>VIP not assigned to any node</td>
+                        <td>Keepalived not running or VRRP blocked</td>
+                        <td>Check <code>systemctl status keepalived</code>; ensure VRRP (protocol 112) is allowed through firewall</td>
+                    </tr>
+                    <tr>
+                        <td>K3s node won't join cluster</td>
+                        <td>Wrong token, can't reach master-01, or firewall</td>
+                        <td>Verify token matches; test <code>curl -k https://master-01:6443</code>; check ports 6443, 2379-2380</td>
+                    </tr>
+                    <tr>
+                        <td>kubectl shows node NotReady</td>
+                        <td>K3s agent can't reach API or CNI issues</td>
+                        <td>Check <code>journalctl -u k3s-agent -f</code>; verify VIP is reachable; check Flannel VXLAN (port 8472)</td>
+                    </tr>
+                    <tr>
+                        <td>PVC stuck in Pending</td>
+                        <td>No StorageClass or Longhorn not ready</td>
+                        <td>Check <code>kubectl get storageclass</code>; verify Longhorn pods: <code>kubectl -n longhorn-system get pods</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>transactional-update</code> changes not applied</td>
+                        <td>MicroOS requires reboot to apply changes</td>
+                        <td>Run <code>transactional-update reboot</code> after package installs</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Useful Diagnostic Commands</h3>
+<pre class="code-block"># K3s server logs
+journalctl -u k3s -f
+
+# K3s agent logs
+journalctl -u k3s-agent -f
+
+# HAProxy status
+systemctl status haproxy
+
+# Keepalived status and VIP ownership
+systemctl status keepalived
+ip addr show | grep "192.168.1.100"
+
+# etcd cluster health
+ssh root@192.168.1.101 "ETCDCTL_API=3 etcdctl \
+    --endpoints=https://127.0.0.1:2379 \
+    --cacert=/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
+    --cert=/var/lib/rancher/k3s/server/tls/etcd/server-client.crt \
+    --key=/var/lib/rancher/k3s/server/tls/etcd/server-client.key \
+    member list"
+
+# Reset K3s completely on a node (start over)
+# Server: /usr/local/bin/k3s-uninstall.sh
+# Agent:  /usr/local/bin/k3s-agent-uninstall.sh</pre>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- Deployment Summary -->
+        <!-- ============================================================ -->
+        <section class="config-section" data-accent="k3s">
+            <h2>Deployment Workflow Summary</h2>
+            <div class="workflow-summary">
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-ssh);">1</div>
+                    <span>Generate configs in the <a href="index.html">Web UI</a></span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-disk);">2</div>
+                    <span>Download ZIP, extract to <code>generated/</code></span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-network);">3</div>
+                    <span>Configure DHCP leases &amp; DNS on your router</span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-os);">4</div>
+                    <span>Install openSUSE MicroOS on all nodes</span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-ssh);">5</div>
+                    <span>Apply OS configuration (sysctl, hosts, SSH, firewall)</span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-haproxy);">6</div>
+                    <span>Deploy HAProxy &amp; Keepalived on masters</span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-k3s);">7</div>
+                    <span>Bootstrap K3s on master-01, join master-02 &amp; master-03</span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-workers);">8</div>
+                    <span>Add worker nodes</span>
+                </div>
+                <div class="workflow-arrow">&darr;</div>
+                <div class="workflow-step">
+                    <div class="workflow-badge" style="background: var(--accent-storage);">9</div>
+                    <span>Install persistent storage (Longhorn / local-path)</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>K3s Baremetal HA Cluster &mdash; Deployment Tutorial</p>
+        <p class="footer-links">
+            <a href="index.html">Configuration Generator</a> |
+            <a href="https://github.com/opentreecz/k3s">GitHub Repository</a> |
+            <a href="https://github.com/opentreecz/k3s/tree/main/docs">Full Documentation</a>
+        </p>
+    </footer>
+</body>
+</html>
